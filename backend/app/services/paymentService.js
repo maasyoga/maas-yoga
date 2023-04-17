@@ -1,9 +1,14 @@
-import { payment, course, student, user } from "../db/index.js";
+import { payment, course, student, user, item } from "../db/index.js";
 import { PAYMENT_TYPES } from "../utils/constants.js";
 
+const isPaymentVerified = payment => {
+  const value = parseFloat(payment.value);
+  const clazzId = payment.clazzId === undefined ? null : payment.clazzId;
+  return value < 0 || payment.type !== PAYMENT_TYPES.CASH || clazzId === null;
+};
+
 export const create = async (paymentParam) => {
-  if (paymentParam.type !== PAYMENT_TYPES.CASH)
-    paymentParam.verified = true;
+  paymentParam.verified = isPaymentVerified(paymentParam);
   return payment.create(paymentParam);
 };
 
@@ -18,6 +23,6 @@ export const getAllByCourseId = async (courseId) => {
 export const getAll = async (specification) => {
   return payment.findAll({
     where: specification.getSequelizeSpecification(),
-    include: [user, student, course]
+    include: specification.getSequelizeSpecificationAssociations([user, student, course])
   });
 };

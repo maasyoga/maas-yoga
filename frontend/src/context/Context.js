@@ -2,9 +2,11 @@ import React, { createContext, useEffect, useState } from "react";
 import studentsService from "../services/studentsService";
 import coursesService from "../services/coursesService";
 import tasksService from "../services/tasksService";
+import clazzesService from "../services/clazzesService";
 import collegesService from "../services/collegesService";
 import paymentsService from "../services/paymentsService";
 import templatesService from "../services/templatesService";
+import categoriesService from "../services/categoriesService";
 
 export const Context = createContext();
 
@@ -21,6 +23,11 @@ export const Provider = ({ children }) => {
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
     const [payments, setPayments] = useState([]);
     const [isLoadingPayments, setIsLoadingPayments] = useState(true);
+    const [clazzes, setClazzes] = useState([]);
+    const [isLoadingClazzes, setIsLoadingClazzes] = useState(true);
+    const [categories, setCategories] = useState([]);
+    const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+    const [items, setItems] = useState([]);
     const [user, setUser] = useState(null);
 
     useEffect(() => {
@@ -70,13 +77,46 @@ export const Provider = ({ children }) => {
             });
             setTemplates(templates);
         }
+        const getClazzes = async () => {
+            const clazzes = await clazzesService.getClazzes();
+            clazzes.forEach(clazz => {
+                clazz.label = clazz.title;
+                clazz.value = clazz.id;
+            });
+            setClazzes(clazzes);
+        }
+        const getCategories = async () => {
+            const categories = await categoriesService.getCategories();
+            categories.forEach(category => {
+                category.label = category.title;
+                category.value = category.id;
+                category.items.forEach(item => {
+                    item.label = item.title;
+                    item.value = item.id;
+                });
+            });
+            setCategories(categories);
+        }
         getStudents();
         getCourses();
         getTasks();
         getColleges();
         getPayments();
         getTemplates();
+        getClazzes();
+        getCategories();
     }, [user]);
+
+    useEffect(() => {
+        const formatedItems = [];
+        categories.forEach(category => category.items.forEach(item => {
+            item.categoryTitle = category.title;
+            item.value = item.id;
+            item.label = item.title;
+            formatedItems.push(item);
+        }));
+        setItems(formatedItems);
+    }, [categories]);
 
     const merge = (item1, item2) => {
         for (let key in item1)
@@ -87,6 +127,7 @@ export const Provider = ({ children }) => {
     const getCourseById = courseId => courses.find(course => course.id === courseId);
     const getStudentById = studentId => students.find(student => student.id === studentId);
     const getHeadquarterById = headquarterId => colleges.find(headquarter => headquarter.id === headquarterId);
+    const getItemById = itemId => categories.find(category => category.items.find(item => item.id === itemId)).items.find(item => item.id === itemId);
 
     const informPayment = async payment => {
         const createdPayment = await paymentsService.informPayment(payment);
@@ -97,6 +138,8 @@ export const Provider = ({ children }) => {
             createdPayment.student = getStudentById(createdPayment.studentId);
         if (createdPayment.headquarterId)
             createdPayment.headquarter = getHeadquarterById(createdPayment.headquarterId);
+        if (createdPayment.itemId)
+            createdPayment.item = getItemById(createdPayment.itemId);
         setPayments(current => [...current, createdPayment]);
         return createdPayment;
     };
@@ -116,10 +159,18 @@ export const Provider = ({ children }) => {
 
     const newCollege = async (college) => {
         const createdCollege = await collegesService.newCollege(college);
-        createdCollege.label = createdCollege.title;
+        createdCollege.label = createdCollege.name;
         createdCollege.value = createdCollege.id;
         setColleges(current => [...current, createdCollege]);
         return createdCollege;
+    }
+
+    const newClazz = async (clazz) => {
+        const createdClazz = await clazzesService.newClazz(clazz);
+        createdClazz.label = createdClazz.title;
+        createdClazz.value = createdClazz.id;
+        setClazzes(current => [...current, createdClazz]);
+        return createdClazz;
     }
 
     const deleteStudent = async studentId => {
@@ -131,6 +182,11 @@ export const Provider = ({ children }) => {
         await studentsService.editStudent(studentId, student);
         setStudents(current => current.map(s => s.id === studentId ? merge(s, student) : s));
     }
+    
+    const editClazz = async (clazzId, clazz) => {
+        await clazzesService.editclazz(clazzId, clazz);
+        setClazzes(current => current.map(s => s.id === clazzId ? merge(s, clazz) : s));
+    }
 
     const newStudent = async student => {
         const createdStudent = await studentsService.newStudent(student);
@@ -141,6 +197,11 @@ export const Provider = ({ children }) => {
     const deleteCourse = async courseId => {
         await coursesService.deleteCourse(courseId);
         setCourses(current => current.filter(course => course.id !== courseId));
+    }
+
+    const deleteClazz = async clazzId => {
+        await clazzesService.deleteClazz(clazzId);
+        setClazzes(current => current.filter(clazz => clazz.id !== clazzId));
     }
 
     const newCourse = async course => {
@@ -229,8 +290,30 @@ export const Provider = ({ children }) => {
         const editedTemplate = await templatesService.updateTemplate(id, template);
         editedTemplate.label = editedTemplate.title;
         editedTemplate.value = editedTemplate.id;
-        setTemplates(current => [...current, editedTemplate]);
+        setTemplates(current => current.map(t => t.id === id ? editedTemplate : t));
         return editedTemplate;
+    }
+
+    const deleteCategory = async (categoryId) => {
+        await categoriesService.deleteCategory(categoryId);
+        setCategories(current => current.filter(c => c.id !== categoryId));
+    }
+    
+    const editCategory = async (categoryId, categoryData) => {
+        const editedCategory = await categoriesService.editCategory(categoryId, categoryData);
+        setCategories(current => current.map(c => c.id === categoryId ? editedCategory : c));
+    }
+    
+    const newCategory = async categoryData => {
+        const createdCategory = await categoriesService.newCategory(categoryData);
+        setCategories(current => [...current, createdCategory]);
+    }
+
+    const verifyClazz = async clazz => {
+        clazz.paymentsVerified = true;
+        await clazzesService.editclazz(clazz.id, clazz);
+        setClazzes(current => current.map(c => c.id === clazz.id ? clazz : c));
+        setPayments(current => current.map(payment => payment.clazzId === clazz.id ? ({ ...payment, verified: true }) : payment));
     }
 
     return (
@@ -241,17 +324,22 @@ export const Provider = ({ children }) => {
             tasks,
             payments,
             templates,
+            clazzes,
+            categories,
+            items,
             isLoadingColleges,
             isLoadingCourses,
             isLoadingPayments,
             isLoadingStudents,
             isLoadingTasks,
             isLoadingTemplates,
+            isLoadingCategories,
             setUser,
             informPayment,
             deleteCollege,
             addCoursesToCollege,
             newCollege,
+            newClazz,
             deleteStudent,
             editStudent,
             newStudent,
@@ -266,6 +354,12 @@ export const Provider = ({ children }) => {
             newTemplate,
             getTemplate,
             editTemplate,
+            editClazz,
+            deleteClazz,
+            deleteCategory,
+            editCategory,
+            newCategory,
+            verifyClazz,
         }}>{children}</Context.Provider>
     );
 }

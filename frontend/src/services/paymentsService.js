@@ -42,12 +42,15 @@ export default {
             const baseUrl = process.env.REACT_APP_BACKEND_HOST;
             const data = {
                 "headquarterId": paymentInfo.headquarterId,
+                "clazzId": paymentInfo.clazzId,
                 "courseId": paymentInfo.courseId,
                 "studentId": paymentInfo.studentId,
+                "itemId": paymentInfo.itemId,
                 "type": paymentInfo.paymentType,
                 "fileId": paymentInfo.fileId,
                 "value": paymentInfo.paymentValue,
-                "at": paymentInfo.at
+                "at": paymentInfo.at,
+                "note": paymentInfo.note,
             }                
             axios
                 .post(baseUrl + `api/v1/payments`, data, { headers })

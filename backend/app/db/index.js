@@ -53,7 +53,7 @@ modelDefiners.forEach((model) => model(sequelize));
 
 //Relaciones
 
-const { user, course, student, payment, file, task, headquarter, courseTask, studentCourseTask, template, clazz } = sequelize.models;
+const { user, course, student, payment, file, task, headquarter, courseTask, studentCourseTask, template, clazz, item, category } = sequelize.models;
 
 
 course.belongsToMany(headquarter, { through: "headquarter_course" });
@@ -61,6 +61,7 @@ headquarter.belongsToMany(course, { through: "headquarter_course" });
 student.belongsToMany(course, { through: "course_student" });
 course.belongsToMany(student, { through: "course_student" });
 file.hasOne(payment, { foreignKey: { allowNull: true }, targetKey: "id" });
+item.hasOne(payment,  { foreignKey: { allowNull: true }, targetKey: "id" });
 student.hasMany(payment, { foreignKey: { allowNull: true }, targetKey: "id" });
 course.hasMany(payment, { foreignKey: { allowNull: true }, targetKey: "id" });
 clazz.hasMany(payment, { foreignKey: { allowNull: true }, targetKey: "id" });
@@ -70,11 +71,14 @@ payment.belongsTo(user);
 payment.belongsTo(student, { foreignKey: { allowNull: true } });
 payment.belongsTo(clazz, { foreignKey: { allowNull: true } });
 payment.belongsTo(course, { foreignKey: { allowNull: true } });
+payment.belongsTo(item, { foreignKey: { allowNull: true } });
 payment.belongsTo(headquarter, { foreignKey: { allowNull: true } });
 courseTask.belongsTo(course);
 course.hasMany(courseTask, { foreignKey: { allowNull: false }, targetKey: "id" });
 student.belongsToMany(courseTask, { through: studentCourseTask });
 courseTask.belongsToMany(student, { through: studentCourseTask });
+category.hasMany(item, { onDelete: "CASCADE" });
+item.belongsTo(category);
 
 export {
   sequelize,
@@ -89,4 +93,6 @@ export {
   studentCourseTask,
   template,
   clazz,
+  category,
+  item,
 };
