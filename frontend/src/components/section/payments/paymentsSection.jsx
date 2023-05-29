@@ -25,7 +25,7 @@ export default function PaymentsSection(props) {
     const [file, setFile] = useState([]);
     const [haveFile, setHaveFile] = useState(false);
     const [fileName, setFilename] = useState("");
-    const { clazzes, students, courses, payments, colleges, templates, isLoadingPayments, informPayment, getTemplate, newTemplate, editTemplate } = useContext(Context);
+    const { clazzes, students, courses, payments, colleges, templates, isLoadingPayments, informPayment, getTemplate, newTemplate, editTemplate, changeAlertStatusAndMessage } = useContext(Context);
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [selectedCollege, setSelectedCollege] = useState(null);
@@ -55,13 +55,21 @@ export default function PaymentsSection(props) {
 
     const uploadFile = async (file) => {
         setIsLoading(true);
-        const response = await paymentsService.uploadFile(file);
-        setFileId(response.id);
-        setFile([]);
-        setHaveFile(false);
-        //checkValues();
-        setFilename("");
-        setIsLoading(true);
+        try {
+            const response = await paymentsService.uploadFile(file);
+            setFileId(response.id);
+            setFile([]);
+            setHaveFile(false);
+            setFilename("");
+            setIsLoading(false);
+            changeAlertStatusAndMessage(true, 'success', 'El archivo fue subido exitosamente!');
+        }catch {
+            changeAlertStatusAndMessage(true, 'error', 'El archivo no pudo ser subido... Por favor inténtelo nuevamente.')
+            setFile([]);
+            setHaveFile(false);
+            setFilename("");
+            setIsLoading(false);
+        }
     }
 
     const informDischarge = () => {
@@ -180,6 +188,7 @@ export default function PaymentsSection(props) {
             setIsDischarge(false);
             setOpenModal(false);
         }catch(err) {
+            changeAlertStatusAndMessage(true, 'error', 'El movimiento no pudo ser informado... Por favor inténtelo nuevamente.')
             console.log(err);
             setIsDischarge(false);
             setIsLoadingPayment(false);

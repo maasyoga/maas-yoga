@@ -31,7 +31,6 @@ export default {
     }
   },
 
-
   /**
    * /payments/students/{studentId} [GET]
    * @returns HttpStatus ok and array of @Payment

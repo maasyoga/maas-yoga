@@ -4,9 +4,10 @@ import { useState } from "react";
 import Modal from "../../modal";
 import PaidIcon from '@mui/icons-material/Paid';
 import ClassesTable from "../../classesTable";
+import { twoDigits } from "../../../utils";
 
 export default function VerifyPaymentClassesSection() {
-    const { clazzes, verifyClazz } = useContext(Context);
+    const { clazzes, verifyClazz, changeAlertStatusAndMessage } = useContext(Context);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [verifyingClazz, setVerifyingClazz] = useState(null);
 
@@ -15,15 +16,17 @@ export default function VerifyPaymentClassesSection() {
         setVerifyingClazz(clazz);
     }
 
-    const handleVerifyClazz = () => {
-        verifyClazz(verifyingClazz);
+    const handleVerifyClazz = async () => {
+        try{
+            await verifyClazz(verifyingClazz);
+        }catch {
+            changeAlertStatusAndMessage(true, 'error', 'La clase no pudo ser verificada... Por favor inténtelo nuevamente.')
+        }
         setVerifyingClazz(null);
         setIsModalOpen(false);
     }
 
     const prettyMonth = date => new Intl.DateTimeFormat('es-ES', { month: 'long'}).format(date);
-
-    const twoDigits = minutes => String(minutes).padStart(2, '0');
 
     const prettyDate = (date) => {
         date = new Date(date);
