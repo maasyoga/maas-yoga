@@ -4,6 +4,7 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import PaidIcon from '@mui/icons-material/Paid';
 import BalanceIcon from '@mui/icons-material/Balance';
 import CategoryIcon from '@mui/icons-material/Category';
+import ImportExportIcon from '@mui/icons-material/ImportExport';
 import CloseIcon from '@mui/icons-material/Close';
 import SchoolIcon from '@mui/icons-material/School';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
@@ -17,6 +18,7 @@ import Colleges from "./colleges";
 import Students from "./students";
 import Courses from "./courses";
 import Categories from "./categories";
+import Imports from "./imports";
 import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
 import { Context } from "../context/Context";
 import NavItem from "../components/navItem";
@@ -106,7 +108,7 @@ export default function Home(props) {
                     </div>
                 </header>
 
-                <aside className={`${isOpenSidebar ? "translate-x-0 w-full" : "-translate-x-full"} sm:translate-x-0 sm:w-64 z-50 transition-transform -translate-x-full fixed overflow-y-auto inset-y-0 left-0 bg-white shadow-md max-h-screen`}>
+                <aside className={`${isOpenSidebar ? "translate-x-0 w-full" : "-translate-x-full"} sm:translate-x-0 sm:w-64 z-50 transition-transform fixed overflow-y-auto inset-y-0 left-0 bg-white shadow-md max-h-screen`}>
                     <div className="flex flex-col justify-between h-full">
                         <div className="flex-grow">
                             <div className="px-4 py-8 text-center border-b bg-orange-100">
@@ -141,6 +143,7 @@ export default function Home(props) {
                                 <NavItem target={"courses"} isActive={props.courses} icon={<LocalLibraryIcon/>}>Cursos</NavItem>
                                 <NavItem target={"classes"} isActive={props.classes} icon={<HistoryEduIcon/>}>Clases</NavItem>
                                 <NavItem target={"categories"} isActive={props.categories} icon={<CategoryIcon/>}>Rubros</NavItem>
+                                <NavItem target={"imports"} isActive={props.imports} icon={<ImportExportIcon/>}>Importar datos</NavItem>
                                 {isMasterAdmin && (<NavItem target={"new-user"} isActive={props.newUser} icon={<GroupIcon/>}>Usuarios</NavItem>)}
                             </ul>
                             </div>
@@ -166,6 +169,7 @@ export default function Home(props) {
                     {props.courses && (<><Courses/></>)}
                     {props.students && (<><Students/></>)}
                     {props.categories && (<><Categories/></>)}
+                    {props.imports && (<><Imports/></>)}
                 </main>
                 </body>
             </div>
