@@ -13,6 +13,7 @@ import SchoolIcon from '@mui/icons-material/School';
 import Table from "../components/table";
 import { Context } from "../context/Context";
 import Container from "../components/container";
+import PlusButton from "../components/button/plus";
 
 export default function Colleges(props) {
     const [displayModal, setDisplayModal] = useState(false);
@@ -195,21 +196,17 @@ export default function Colleges(props) {
     return(
         <>
             <Container title="Sedes">
-                <div className="my-6 md:my-12 mx-8 md:mx-4">
-                    <Table
-                        columns={columns}
-                        data={colleges}
-                        noDataComponent={opResult}
-                        pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
-                    />
-                </div>
+                <Table
+                    columns={columns}
+                    data={colleges}
+                    noDataComponent={opResult}
+                    pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
+                />
                 <div className="flex justify-end">
-                    <button onClick={() => setDisplayModal(true)}
-                            className="mt-6 bg-yellow-900 w-14 h-14 rounded-full shadow-lg flex justify-center items-center text-white text-4xl transition duration-200 ease-in-out bg-none hover:bg-none transform hover:-translate-y-1 hover:scale-115"><span className="font-bold text-sm text-yellow-900"><AddIcon fontSize="large" sx={{ color: orange[50] }} /></span>
-                    </button>
+                    <PlusButton onClick={() => setDisplayModal(true)}/>
                 </div>
                 <Modal icon={<AccountBalanceIcon />} onClick={formik.handleSubmit} open={displayModal} setDisplay={setDisplay} title={edit ? 'Editar sede' : 'Agregar sede'} buttonText={isLoading ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">{edit ? 'Editando...' : 'Agregando...'}</span></>) : <span>{edit ? 'Editar' : 'Agregar'}</span>} children={<>
-                    <form className="pr-8 pt-6 mb-4"    
+                    <form className="pt-6 mb-4"    
                         method="POST"
                         id="form"
                         onSubmit={formik.handleSubmit}
