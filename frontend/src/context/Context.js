@@ -160,6 +160,13 @@ export const Provider = ({ children }) => {
         return createdPayment;
     };
 
+    const verifyPayment = async (paymentId) => {
+        const veryfiedPayment = await paymentsService.verifyPayment(paymentId);
+        changeAlertStatusAndMessage(true, 'success', 'El pago fue verificado exitosamente!');
+        setPayments(current => current.map(p => ({ ...p, verified: true, user: users.find(u => u.id === p.userId) })));
+        return veryfiedPayment;
+    }
+
     const deletePayment = async (id) => {
         await paymentsService.deletePayment(id);
         setPayments(current => current.filter(p => p.id !== id));
@@ -276,9 +283,19 @@ export const Provider = ({ children }) => {
 
     const newCourse = async course => {
         const createdCourse = await coursesService.newCourse(course);
-        changeAlertStatusAndMessage(true, 'success', 'El curso fue creado exitosamente!')
+        changeAlertStatusAndMessage(true, 'success', 'El curso fue creado exitosamente!');
+        createdCourse.label = createdCourse.title;
+        createdCourse.value = createdCourse.id;
         setCourses(current => [...current, createdCourse]);
         return createdCourse;
+    }
+
+    const editCourse = async (courseId, course) => {
+        const editedCourse = await coursesService.editCourse(courseId, course);
+        course.id = courseId;
+        changeAlertStatusAndMessage(true, 'success', 'El curso fue editado exitosamente!');
+        setCourses(current => current.map(s => s.id === courseId ? merge(s, course) : s));
+        return editedCourse;
     }
 
     const addStudent = async (courseId, studentsIds) => {
@@ -387,12 +404,16 @@ export const Provider = ({ children }) => {
     
     const editCategory = async (categoryId, categoryData) => {
         const editedCategory = await categoriesService.editCategory(categoryId, categoryData);
+        editedCategory.label = editedCategory.title;
+        editedCategory.value = editedCategory.id;
         changeAlertStatusAndMessage(true, 'success', 'La categoria fue editada exitosamente!')
         setCategories(current => current.map(c => c.id === categoryId ? editedCategory : c));
     }
     
     const newCategory = async categoryData => {
         const createdCategory = await categoriesService.newCategory(categoryData);
+        createdCategory.label = createdCategory.title;
+        createdCategory.value = createdCategory.id;
         changeAlertStatusAndMessage(true, 'success', 'La categoria fue creada exitosamente!')
         setCategories(current => [...current, createdCategory]);
     }
@@ -403,6 +424,23 @@ export const Provider = ({ children }) => {
         changeAlertStatusAndMessage(true, 'success', 'La clase fue verificada exitosamente!')
         setClazzes(current => current.map(c => c.id === clazz.id ? clazz : c));
         setPayments(current => current.map(payment => payment.clazzId === clazz.id ? ({ ...payment, verified: true }) : payment));
+    }
+
+    const calcProfessorsPayments = async (from, to) => {
+        const data = await coursesService.calcProfessorsPayments(from, to);
+        data.forEach(d => {
+            d.payments.forEach(p => {
+                p.student = students.find(s => s.id === p.studentId);
+                p.user = users.find(u => u.id === p.userId);
+                p.course = courses.find(c => c.id === p.courseId);
+            });
+            d.course = courses.find(c => c.id === d.courseId);
+        });
+        return data;
+    }
+
+    const updateUnverifiedPayment = async (data, paymentId) => {
+        await paymentsService.updateUnverifiedPayment(data, paymentId);
     }
 
     return (
@@ -428,6 +466,7 @@ export const Provider = ({ children }) => {
             alertStatus,
             setUser,
             informPayment,
+            verifyPayment,
             newSubscriptionClasses,
             deletePayment,
             deleteCollege,
@@ -441,6 +480,7 @@ export const Provider = ({ children }) => {
             newStudents,
             deleteCourse,
             newCourse,
+            editCourse,
             addStudent,
             editTask,
             deleteTask,
@@ -458,6 +498,8 @@ export const Provider = ({ children }) => {
             verifyClazz,
             users,
             changeAlertStatusAndMessage,
+            calcProfessorsPayments,
+            updateUnverifiedPayment,
         }}>{children}</Context.Provider>
     );
 }

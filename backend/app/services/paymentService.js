@@ -1,11 +1,6 @@
+import { StatusCodes } from "http-status-codes";
 import { payment, course, student, user, file } from "../db/index.js";
 import { PAYMENT_TYPES } from "../utils/constants.js";
-
-const isPaymentVerified = payment => {
-  const value = parseFloat(payment.value);
-  const clazzId = payment.clazzId === undefined ? null : payment.clazzId;
-  return value < 0 || payment.type !== PAYMENT_TYPES.CASH || clazzId === null;
-};
 
 /**
  * 
@@ -21,8 +16,7 @@ export const create = async (paymentParam, informerId) => {
       p.oldId = p.id;
       delete p.id;
     }
-    if (p.verified === null || p === undefined)
-      p.verified = isPaymentVerified(p);
+    p.verified = true;
     p.userId = informerId;
   });
   const createdPayments = await payment.bulkCreate(paymentParam);
@@ -50,4 +44,19 @@ export const getAll = async (specification) => {
     where: specification.getSequelizeSpecification(),
     include: specification.getSequelizeSpecificationAssociations([user, student, course])
   });
+};
+
+export const updateUnverifiedPayment = async (id, data) => {
+  const p = await payment.findByPk(id);
+  if (p.verified)
+    throw ({ statusCode: StatusCodes.BAD_REQUEST, message: "Payment must be unverified to update" });
+  await payment.update(data, { where: { id } });
+  return payment.findByPk(id, { include: [user,student,course] });
+};
+
+export const changeVerified = async (id, verified, verifiedBy) => {
+  const newData = { verified };
+  if (verified)
+    newData.verifiedBy = verifiedBy;
+  return payment.update(newData, { where: { id } });
 };

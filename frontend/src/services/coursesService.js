@@ -7,7 +7,10 @@ export default {
                 "title": courseData.title,
                 "description": courseData.description,
                 "startAt": courseData.startAt,
-                "duration": courseData.duration
+                "duration": courseData.duration,
+                "criteria": courseData.criteria,
+                "criteriaValue": courseData.criteriaValue,
+                "professor": courseData.professor,
             }
             const baseUrl = process.env.REACT_APP_BACKEND_HOST;
             axios
@@ -52,7 +55,10 @@ export default {
                 "title": courseData.title,
                 "description": courseData.description,
                 "startAt": courseData.startAt,
-                "duration": courseData.duration
+                "duration": courseData.duration,
+                "criteria": courseData.criteria,
+                "criteriaValue": courseData.criteriaValue,
+                "professor":courseData.professor,
             }
             const baseUrl = process.env.REACT_APP_BACKEND_HOST;
             axios
@@ -149,6 +155,20 @@ export default {
             const status = { "completed": taskStatus };
             axios
                 .put(baseUrl + `api/v1/courses/tasks/${taskId}/students/${studentId}`, status, {})
+                .then((response) => {
+                    resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.data)
+                })
+        });
+    },
+    calcProfessorsPayments(from, to) {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            const period = { from, to };
+            axios
+                .post(baseUrl + `api/v1/courses/calc-professors-payments`, period, {})
                 .then((response) => {
                     resolve(response.data);
                 })

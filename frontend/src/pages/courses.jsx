@@ -26,7 +26,7 @@ import Container from "../components/container";
 import PlusButton from "../components/button/plus";
 
 export default function Courses(props) {
-    const { courses, students, isLoadingStudents, deleteCourse, addStudent, newCourse, changeTaskStatus, changeAlertStatusAndMessage } = useContext(Context);
+    const { courses, students, isLoadingStudents, deleteCourse, addStudent, newCourse, editCourse, changeTaskStatus, changeAlertStatusAndMessage } = useContext(Context);
     const [displayModal, setDisplayModal] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [startAt, setStartAt] = useState(dayjs(new Date()));
@@ -44,6 +44,7 @@ export default function Courses(props) {
     const [courseName, setCourseName] = useState("");
     const [addTaskModal, setAddTaskModal] = useState(false);
     const [taskId, setTaskId] = useState(null);
+    const [isDateSelected, setIsDateSelected] = useState(false);
 
     const setDisplay = (value) => {
         setDisplayModal(value);
@@ -53,6 +54,7 @@ export default function Courses(props) {
         setAddTaskModal(value);
         setDisplayTasksModal(value);
         setIsTaskStudentModal(value);
+        setIsDateSelected(false);
     }
 
     const setDisplayTask = async (value) => {
@@ -83,7 +85,9 @@ export default function Courses(props) {
     }
 
     const openEditModal = (course) => {
+        console.log(course);
         setEdit(true);
+        setIsDateSelected(true);
         setDisplayModal(true);
         setCourseId(course.id);
         setCourseToEdit(course);
@@ -143,20 +147,6 @@ export default function Courses(props) {
             sortable: true,
             searchable: true,
             selector: row => row.title,
-        },
-        {
-            name: 'Descripción',
-            cell: row => {return (<><div className="flex flex-col justify-center">
-            <div className="relative py-3 sm:max-w-xl sm:mx-auto">
-              <div className="group cursor-pointer relative inline-block">{row.description}
-                <div className="opacity-0 w-28 bg-orange-200 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
-                  {row.description}
-                  <svg className="absolute text-orange-200 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
-                </div>
-              </div>
-            </div>
-          </div></>)},
-            sortable: true,
         },
         {
             name: 'Fecha de inicio',
@@ -320,20 +310,27 @@ export default function Courses(props) {
         initialValues: {
             title: edit ? courseToEdit.title : '',
             description: edit ? courseToEdit.description : '',
-            startAt: edit ? courseToEdit.startAt : startAt,
-            duration: edit ? courseToEdit.duration : ''
+            startAt: edit ? dayjs(new Date(courseToEdit.startAt)) : startAt,
+            duration: edit ? courseToEdit.duration : '',
+            professor: edit ? courseToEdit.professor : '',
+            criteria: edit ? courseToEdit.criteria : '',
+            criteriaValue: edit ? courseToEdit.criteriaValue : 0,
         },
             onSubmit: async (values) => {
                 const body = {
                   title: values.title,
                   description: values.description,
                   startAt: startAt,
-                  duration: values.duration
+                  duration: values.duration,
+                  criteria: values.criteria,
+                  criteriaValue: values.criteriaValue,
+                  professor: values.professor,
                 };
+                console.log("onSubmit body=", body);
                 setIsLoading(true);
                 try {
                   if(edit) {
-                        await coursesService.editCourse(courseId, body);
+                        await editCourse(courseId, body);
                         setEdit(false);
                         if(selectedOption.length > 0) {
                             await addStudent(courseId, selectedOption);
@@ -345,6 +342,7 @@ export default function Courses(props) {
                             await addStudent(response.id, selectedOption);
                         }
                   }
+                  setIsDateSelected(false);
                   setIsLoading(false);
                   setDisplayModal(false);
                 } catch (error) {
@@ -354,7 +352,9 @@ export default function Courses(props) {
                 }
                 formik.values = {};
               },
-      });
+    });
+
+    const handleRadioButtons = e => formik.values.criteria = e.target.value;
 
     useEffect(() => {
         console.log('Cantidad seleccionada ' + selectedOption.length + '...');
@@ -383,7 +383,24 @@ export default function Courses(props) {
                         id="form"
                         onSubmit={formik.handleSubmit}
                     >
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="mb-4 relative col-span-2">
+                            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
+                                Fecha de inicio
+                            </label>
+                            <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                <DemoContainer components={['DateTimePicker', 'DateTimePicker']}>
+                                    <DateTimePicker
+                                    label="Seleccionar fecha"
+                                    value={formik.values.startAt}
+                                    onChange={(newValue) => {
+                                        setStartAt(newValue);
+                                        setIsDateSelected(true);
+                                    }}
+                                    />
+                                </DemoContainer>
+                            </LocalizationProvider>
+                        </div>
+                        {isDateSelected && (<><div className="grid grid-cols-2 gap-4">
                             <div className="mb-4">
                                 <CommonInput 
                                     label="Título"    
@@ -398,7 +415,7 @@ export default function Courses(props) {
                                 />
                             </div>
                             <div className="mb-4">
-                            <CommonInput 
+                                <CommonInput 
                                     label="Descripción"    
                                     onBlur={formik.handleBlur}
                                     value={formik.values.description}
@@ -408,35 +425,34 @@ export default function Courses(props) {
                                     type="text" 
                                     placeholder="Descripción"
                                     onChange={formik.handleChange}
-                            />
-                            </div>
-                            <div className="mb-4 relative col-span-2">
-                                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
-                                    Fecha de inicio
-                                </label>
-                                <LocalizationProvider dateAdapter={AdapterDayjs}>
-                                    <DemoContainer components={['DateTimePicker', 'DateTimePicker']}>
-                                        <DateTimePicker
-                                        label="Seleccionar fecha"
-                                        value={startAt}
-                                        onChange={(newValue) => setStartAt(newValue)}
-                                        />
-                                    </DemoContainer>
-                                </LocalizationProvider>
+                                />
                             </div>
                         </div>
-                        <div className="mb-4 w-3/6">
-                                <CommonInput 
-                                    label="Duración"    
-                                    onBlur={formik.handleBlur}
-                                    value={formik.values.duration}
-                                    name="duration"
-                                    htmlFor="duration"
-                                    id="duration" 
-                                    type="text" 
-                                    placeholder="Duración" 
-                                    onChange={formik.handleChange}
-                                />
+                        <div className="mb-4">
+                            <CommonInput 
+                                label="Duración"    
+                                onBlur={formik.handleBlur}
+                                value={formik.values.duration}
+                                name="duration"
+                                htmlFor="duration"
+                                id="duration" 
+                                type="text" 
+                                placeholder="Duración" 
+                                onChange={formik.handleChange}
+                            />
+                        </div>
+                        <div className="mb-4">
+                            <CommonInput 
+                                label="Profesor"    
+                                onBlur={formik.handleBlur}
+                                value={formik.values.professor}
+                                name="professor"
+                                htmlFor="professor"
+                                id="professor" 
+                                type="text" 
+                                placeholder="Profesor" 
+                                onChange={formik.handleChange}
+                            />
                         </div>
                         <div className="mb-4">
                                 <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
@@ -444,6 +460,30 @@ export default function Courses(props) {
                                 </label>
                                 <Select isMulti onChange={handleChange} options={students} />
                         </div>
+                        <div className="mb-4">
+                            <label className="block text-gray-700 text-sm font-bold mb-4">
+                                Pago del profesor por:
+                            </label>
+                            <div className="flex items-center mb-4 ml-2 md:ml-4">
+                                <input name="criteria" id="criteria-percentage" type="radio" checked={formik.values.criteria == 'percentage'} value="percentage" onChange={formik.handleChange} className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600" />
+                                <label for="criteria-percentage" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-900">Porcentaje</label>
+                            </div>
+                            <div className="flex items-center ml-2 md:ml-4">
+                                <input name="criteria" id="criteria-student" checked={formik.values.criteria == 'student'} value="student" onChange={formik.handleChange} type="radio" className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600" />
+                                <label for="criteria-student" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-900">Estudiante</label>
+                            </div>
+                        </div>
+                        <div className="mb-4 w-3/6">
+                            <CommonInput 
+                                label={(formik.values.criteria == 'percentage') ? "Porcentaje" : "Cantidad por alumno"}    
+                                value={formik.values.criteriaValue}
+                                name="criteriaValue"
+                                id="criteriaValue" 
+                                type="number" 
+                                placeholder={(formik.values.criteria == 'percentage') ? "Porcentaje" : "Cantidad por alumno"}
+                                onChange={formik.handleChange}
+                            />
+                        </div></>)}
                     </form>
                 </>
                 } />
