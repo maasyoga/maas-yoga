@@ -7,9 +7,10 @@ import { dateToString, withSeparators } from "../../utils";
 import Select from 'react-select';
 import DoneIcon from '@mui/icons-material/Done';
 import { PAYMENT_OPTIONS } from "../../constants";
+import EditIcon from '@mui/icons-material/Edit';
 
-export default function PaymentsTable({ className = "", payments, isLoading, onDelete = () => {}, canVerify }) {
-    const { deletePayment, categories, verifyPayment, updateUnverifiedPayment } = useContext(Context);
+export default function PaymentsTable({ dateField = "at", className = "", payments, isLoading, onDelete = () => {}, canVerify, editPayment }) {
+    const { deletePayment, user, categories, verifyPayment, updateUnverifiedPayment, changeAlertStatusAndMessage } = useContext(Context);
     const [payment, setPayment] = useState(null);
     const [deleteModal, setDeleteModal] = useState(false);
     const [isDeletingPayment, setIsDeletingPayment] = useState(false);
@@ -41,6 +42,40 @@ export default function PaymentsTable({ className = "", payments, isLoading, onD
         setVerifying(false);
         setPayment(null);
         setVerifyModal(false);
+    }
+
+    const openEditModal = (payment) => {
+        editPayment(payment);
+    }
+
+    const handleDownloadGoogleDrive = async payment => {
+        if (payment.driveFileId) {
+            if (!("googleDriveCredentials" in user)) {
+                changeAlertStatusAndMessage(true, "error", "El usuario no tiene acceso a google drive");
+                return;
+            }
+            let anchor = document.createElement("a");
+            document.body.appendChild(anchor);
+            let downloadUrl = `https://www.googleapis.com/drive/v3/files/${payment.driveFileId}`;
+            let accessToken = user.googleDriveCredentials.token;
+            let authorization = `Bearer ${accessToken}`;
+            let headers = new Headers();
+            headers.append('Authorization', authorization);
+            let response = await fetch(downloadUrl, {
+                "method": "GET",
+                "headers": {
+                    "Authorization": authorization
+                }
+            });
+            let json = await response.json();
+            response = await fetch(downloadUrl + "?alt=media", { headers });
+            let blobby = await response.blob();
+            let objectUrl = window.URL.createObjectURL(blobby);
+            anchor.href = objectUrl;
+            anchor.download = json.name;
+            anchor.click();
+            window.URL.revokeObjectURL(objectUrl);
+        }
     }
 
     const getPayments = () => {
@@ -99,7 +134,7 @@ export default function PaymentsTable({ className = "", payments, isLoading, onD
         const newColumns = [
             {
                 name: 'Fecha',
-                selector: row => dateToString(row.at),
+                selector: row => dateToString(row[dateField]),
                 sortable: true,
                 searchable: true,
                 maxWidth: '120px',
@@ -141,18 +176,18 @@ export default function PaymentsTable({ className = "", payments, isLoading, onD
             },
             {
                 name: 'Comprobante',
-                cell: row => (<>{row.fileId !== null &&<a href={`${process.env.REACT_APP_BACKEND_HOST}api/v1/files/${row.fileId}`} className="bg-orange-300 w-40 h-auto rounded-lg py-2 px-3 text-center text-white hover:bg-orange-550 whitespace-nowrap">Obtener comprobante
+                cell: row => (<>{(row.fileId !== null || row.driveFileId !== null) &&<a href={row.fileId !== null ? `${process.env.REACT_APP_BACKEND_HOST}api/v1/files/${row.fileId}` : `#`} onClick={() => handleDownloadGoogleDrive(row)} className="bg-orange-300 w-40 h-auto rounded-lg py-2 px-3 text-center text-white hover:bg-orange-550 whitespace-nowrap">Obtener comprobante
                 </a>}</>),
                 sortable: true,
             },
             {
                 name: 'Acciones',
-                cell: row => (<div className="flex w-full justify-center"><button className="rounded-full p-1 bg-red-200 hover:bg-red-300 mx-1" onClick={() => openDeleteModal(row)}><DeleteIcon /></button>{canVerify && (<button className="rounded-full p-1 bg-green-200 hover:bg-green-300 mx-1" onClick={() => openVerifyModal(row)}><DoneIcon /></button>)}</div>),
+                cell: row => (<div className="flex w-full justify-center"><button className="rounded-full p-1 bg-red-200 hover:bg-red-300 mx-1" onClick={() => openDeleteModal(row)}><DeleteIcon /></button>{canVerify && (<button className="rounded-full p-1 bg-green-200 hover:bg-green-300 mx-1" onClick={() => openVerifyModal(row)}><DoneIcon /></button>)}<button className="rounded-full p-1 bg-orange-200 hover:bg-orange-300 mx-1" onClick={() => openEditModal(row)}><EditIcon /></button></div>),
                 sortable: true,
             },
         ];
         return newColumns;
-    }, [categories]); 
+    }, [categories, dateField]); 
 
     useEffect(() => {
         getBalanceForAllPayments();
@@ -168,9 +203,9 @@ export default function PaymentsTable({ className = "", payments, isLoading, onD
                 pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
             />
             <div className="bg-orange-200 rounded-2xl px-8 py-4 mt-8 md:flex md:justify-between">
-                <div className="md:mr-12 flex flex-col lg:flex-row items-center"><span className="mb-2 md:mb-0">Total: </span><span className={`${getBalanceForAllPayments() >= 0 ? "text-gray-800" : "text-red-800"} w-full text-center font-bold bg-white rounded-2xl py-2 px-3`}>${withSeparators(getBalanceForAllPayments())}</span></div>
-                <div className="mt-2 md:mt-0 md:mx-12 flex flex-col lg:flex-row items-center"><span className="mb-2 md:mb-0">Ingresos: </span><span className="w-full text-center text-gray-800 font-bold bg-white rounded-2xl py-2 px-3">${withSeparators(getPayments())}</span></div>
-                <div className="mt-2 md:mt-0 md:mx-12 flex flex-col lg:flex-row items-center"><span className="mb-2 md:mb-0">Egresos: </span><span className="w-full text-center text-red-800 font-bold bg-white rounded-2xl py-2 px-3">${withSeparators(getDischarges())}</span></div>
+                <div className="md:mr-12 flex flex-col lg:flex-row items-center"><span className="mb-2 md:mb-0">Total: </span><span className={`${getBalanceForAllPayments() >= 0 ? "text-gray-800" : "text-red-800"} w-full text-center font-bold bg-white ml-2 rounded-2xl py-2 px-3`}>${withSeparators(getBalanceForAllPayments())}</span></div>
+                <div className="mt-2 md:mt-0 md:mx-12 flex flex-col lg:flex-row items-center"><span className="mb-2 md:mb-0">Ingresos: </span><span className="w-full text-center text-gray-800 font-bold bg-white rounded-2xl py-2 px-3 ml-2">${withSeparators(getPayments())}</span></div>
+                <div className="mt-2 md:mt-0 md:mx-12 flex flex-col lg:flex-row items-center"><span className="mb-2 md:mb-0">Egresos: </span><span className="w-full text-center text-red-800 font-bold bg-white rounded-2xl py-2 px-3 ml-2">${withSeparators(getDischarges())}</span></div>
             </div>
             <Modal onClose={() => setPayment(null)} icon={<DeleteIcon />} open={deleteModal} setDisplay={() => setDeleteModal(false)} title="Eliminar pago" buttonText={isDeletingPayment ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">Eliminando...</span></>) : <span>Eliminar</span>} onClick={handleDeletePayment}>
                 {payment !== null &&

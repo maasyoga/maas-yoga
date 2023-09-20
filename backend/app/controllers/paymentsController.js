@@ -23,7 +23,7 @@ export default {
    */
   deleteById: async (req, res, next) => {
     try {
-      await paymentService.deleteById(req.params.id);
+      await paymentService.deleteById(req.params.id, req.user.id);
       res.status(StatusCodes.NO_CONTENT).send();
     } catch (e) {
       next(e);
@@ -63,7 +63,8 @@ export default {
   getAll: async (req, res, next) => {
     try {
       const querySpecification = req.query.q;
-      const specification = new Specification(querySpecification, payment);
+      const isOrOperation = req.query.isOrOperation === 'true'
+      const specification = new Specification(querySpecification, payment, isOrOperation);
       const payments = await paymentService.getAll(specification);
       res.status(StatusCodes.OK).json(payments);
     } catch (e) {
@@ -73,12 +74,12 @@ export default {
 
   /**
    * /payments/{id} [PUT]
-   * @returns HttpStatus ok
+   * @returns HttpStatus ok and @Payment updated
    */
   updateUnverifiedPayment: async (req, res, next) => {
     try {
-      await paymentService.updateUnverifiedPayment(req.params.id, req.body);
-      res.status(StatusCodes.OK).json();
+      const updatedPayment = await paymentService.updateUnverifiedPayment(req.params.id, req.body, req.user.id);
+      res.status(StatusCodes.OK).json(updatedPayment);
     } catch (e) {
       next(e);
     }

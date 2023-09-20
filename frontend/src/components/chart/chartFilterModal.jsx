@@ -12,6 +12,8 @@ import FilterPaymentCollege from "./filters/college";
 import FilterPaymentItem from "./filters/item";
 import FilterPaymentCategory from "./filters/category";
 import FilterPaymentClazz from "./filters/clazz";
+import FilterPaymentCreatedAt from "./filters/createdAt";
+import FilterPaymentOperativeResult from "./filters/operativeResult";
 
 export default function ChartFilterModal({ isOpen, closeModal, onApplyFilter }) {
 
@@ -35,9 +37,19 @@ export default function ChartFilterModal({ isOpen, closeModal, onApplyFilter }) 
             component: <FilterPaymentValue onChange={value => onFilterChangeValue(value, "value")}/>
         },
         {
-            label: "Fecha del pago",
+            label: "Fecha indicada",
             value: "at",
             component: <FilterPaymentAt onChange={value => onFilterChangeValue(value, "at")} />
+        },
+        {
+            label: "Fecha ingreso",
+            value: "createdAt",
+            component: <FilterPaymentCreatedAt onChange={value => onFilterChangeValue(value, "createdAt")} />
+        },
+        {
+            label: " Resultado operativo",
+            value: "operativeResult",
+            component: <FilterPaymentOperativeResult onChange={value => onFilterChangeValue(value, "operativeResult")} />
         },
         {
             label: "Estudiante",

@@ -12,6 +12,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import Select from 'react-select';
 import SchoolIcon from '@mui/icons-material/School';
 import dayjs from 'dayjs';
+import CloseIcon from '@mui/icons-material/Close';
 import { DemoContainer } from '@mui/x-date-pickers/internals/demo';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -24,12 +25,14 @@ import DoneOutlineIcon from '@mui/icons-material/DoneOutline';
 import RemoveDoneIcon from '@mui/icons-material/RemoveDone';
 import Container from "../components/container";
 import PlusButton from "../components/button/plus";
+import ProfessorInfo from "../components/courses/professorInfo";
 
 export default function Courses(props) {
-    const { courses, students, isLoadingStudents, deleteCourse, addStudent, newCourse, editCourse, changeTaskStatus, changeAlertStatusAndMessage } = useContext(Context);
+    const { courses, students, professors, isLoadingStudents, deleteCourse, addStudent, newCourse, editCourse, changeTaskStatus, changeAlertStatusAndMessage } = useContext(Context);
     const [displayModal, setDisplayModal] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [startAt, setStartAt] = useState(dayjs(new Date()));
+    const [endAt, setEndAt] = useState(dayjs(new Date()));
     const [deleteModal, setDeleteModal] = useState(false);
     const [courseId, setCourseId] = useState(null);
     const [opResult, setOpResult] = useState('Verificando cursos...');
@@ -45,6 +48,8 @@ export default function Courses(props) {
     const [addTaskModal, setAddTaskModal] = useState(false);
     const [taskId, setTaskId] = useState(null);
     const [isDateSelected, setIsDateSelected] = useState(false);
+    const [newProfessor, setNewProfessor] = useState(false);
+    const [courseProfessors, setCourseProfessors] = useState([]);
 
     const setDisplay = (value) => {
         setDisplayModal(value);
@@ -55,6 +60,9 @@ export default function Courses(props) {
         setDisplayTasksModal(value);
         setIsTaskStudentModal(value);
         setIsDateSelected(false);
+        setNewProfessor(false);
+        setStartAt(dayjs(new Date()));
+        setCourseProfessors([]);
     }
 
     const setDisplayTask = async (value) => {
@@ -129,6 +137,12 @@ export default function Courses(props) {
             changeAlertStatusAndMessage(true, 'error', 'El estado de la tarea no pudo ser editado... Por favor inténtelo nuevamente.')
             console.log(error);
         }
+    }
+
+    const getProfessorName = (id) => {
+        const [prf] = professors.filter(prf => prf.id === id);
+        const prfName = prf.name + ' ' + prf.lastName;
+       return prfName;
     }
 
     const columns = [
@@ -311,20 +325,16 @@ export default function Courses(props) {
             title: edit ? courseToEdit.title : '',
             description: edit ? courseToEdit.description : '',
             startAt: edit ? dayjs(new Date(courseToEdit.startAt)) : startAt,
-            duration: edit ? courseToEdit.duration : '',
-            professor: edit ? courseToEdit.professor : '',
-            criteria: edit ? courseToEdit.criteria : '',
-            criteriaValue: edit ? courseToEdit.criteriaValue : 0,
+            endAt: edit ? dayjs(new Date(courseToEdit.endAt)) : endAt,
+            professors: edit ? courseToEdit.professors : [],
         },
             onSubmit: async (values) => {
                 const body = {
                   title: values.title,
                   description: values.description,
                   startAt: startAt,
-                  duration: values.duration,
-                  criteria: values.criteria,
-                  criteriaValue: values.criteriaValue,
-                  professor: values.professor,
+                  endAt: endAt,
+                  professors: courseProfessors,
                 };
                 console.log("onSubmit body=", body);
                 setIsLoading(true);
@@ -332,12 +342,16 @@ export default function Courses(props) {
                   if(edit) {
                         await editCourse(courseId, body);
                         setEdit(false);
+                        setNewProfessor(false);
+                        setCourseProfessors([]);
                         if(selectedOption.length > 0) {
                             await addStudent(courseId, selectedOption);
                         }
                   }else{
                         const response = await newCourse(body);
+                        setNewProfessor(false);
                         setCourseId(response.id);
+                        setCourseProfessors([]);
                         if(selectedOption.length > 0) {
                             await addStudent(response.id, selectedOption);
                         }
@@ -348,6 +362,8 @@ export default function Courses(props) {
                 } catch (error) {
                     changeAlertStatusAndMessage(true, 'error', 'El curso no pudo ser informado... Por favor inténtelo nuevamente.')
                   setIsLoading(false);
+                  setCourseProfessors([]);
+                  setNewProfessor(false);
                   setDisplayModal(false);
                 }
                 formik.values = {};
@@ -375,7 +391,11 @@ export default function Courses(props) {
                     pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
                 />
                 <div className="flex justify-end">
-                    <PlusButton onClick={() => setDisplayModal(true)}/>
+                    <PlusButton onClick={() => {
+                            setDisplayModal(true);
+                            setStartAt(dayjs(new Date()));
+                        }
+                    }/>
                 </div>
                 <Modal icon={<LocalLibraryIcon />} onClick={formik.handleSubmit} open={displayModal} setDisplay={setDisplay} title={edit ? 'Editar curso' : 'Agregar curso'} buttonText={isLoading ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">{edit ? 'Editando...' : 'Agregando...'}</span></>) : <span>{edit ? 'Editar' : 'Agregar'}</span>} children={<>
                     <form className="pt-6 mb-4"    
@@ -394,6 +414,23 @@ export default function Courses(props) {
                                     value={formik.values.startAt}
                                     onChange={(newValue) => {
                                         setStartAt(newValue);
+                                        setIsDateSelected(true);
+                                    }}
+                                    />
+                                </DemoContainer>
+                            </LocalizationProvider>
+                        </div>
+                        <div className="mb-4 relative col-span-2">
+                            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
+                                Fecha de finalizacion
+                            </label>
+                            <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                <DemoContainer components={['DateTimePicker', 'DateTimePicker']}>
+                                    <DateTimePicker
+                                    label="Seleccionar fecha"
+                                    value={formik.values.endAt}
+                                    onChange={(newValue) => {
+                                        setEndAt(newValue);
                                         setIsDateSelected(true);
                                     }}
                                     />
@@ -429,61 +466,33 @@ export default function Courses(props) {
                             </div>
                         </div>
                         <div className="mb-4">
-                            <CommonInput 
-                                label="Duración"    
-                                onBlur={formik.handleBlur}
-                                value={formik.values.duration}
-                                name="duration"
-                                htmlFor="duration"
-                                id="duration" 
-                                type="text" 
-                                placeholder="Duración" 
-                                onChange={formik.handleChange}
-                            />
-                        </div>
-                        <div className="mb-4">
-                            <CommonInput 
-                                label="Profesor"    
-                                onBlur={formik.handleBlur}
-                                value={formik.values.professor}
-                                name="professor"
-                                htmlFor="professor"
-                                id="professor" 
-                                type="text" 
-                                placeholder="Profesor" 
-                                onChange={formik.handleChange}
-                            />
-                        </div>
-                        <div className="mb-4">
-                                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
+                                <label className="block text-gray-700 text-sm font-bold mb-2">
                                     Asignar alumnos
                                 </label>
                                 <Select isMulti onChange={handleChange} options={students} />
                         </div>
-                        <div className="mb-4">
-                            <label className="block text-gray-700 text-sm font-bold mb-4">
-                                Pago del profesor por:
+                        {courseProfessors.length > 0 && (<>
+                        <label className="block text-gray-700 text-sm font-bold mb-2">
+                                Profesores
+                        </label>
+                        {courseProfessors.map((prf, index) => 
+                            <div className="my-1 px-3 py-2 bg-orange-50 flex justify-between items-center rounded-sm w-auto" key={index}>{getProfessorName(prf.professorId)}<button type="button" className="p-1 rounded-full bg-gray-100 ml-2" onClick={() => setCourseProfessors(courseProfessors.filter((professor, idx) => idx !== index))}><CloseIcon /></button></div>
+                        )}</>)}
+                        {!newProfessor && (<div className="mb-4 mt-2 flex items-center justify-start">
+                            <label className="block text-gray-700 text-sm font-bold">
+                                Nuevo profesor
                             </label>
-                            <div className="flex items-center mb-4 ml-2 md:ml-4">
-                                <input name="criteria" id="criteria-percentage" type="radio" checked={formik.values.criteria == 'percentage'} value="percentage" onChange={formik.handleChange} className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600" />
-                                <label for="criteria-percentage" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-900">Porcentaje</label>
-                            </div>
-                            <div className="flex items-center ml-2 md:ml-4">
-                                <input name="criteria" id="criteria-student" checked={formik.values.criteria == 'student'} value="student" onChange={formik.handleChange} type="radio" className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600" />
-                                <label for="criteria-student" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-900">Estudiante</label>
-                            </div>
-                        </div>
-                        <div className="mb-4 w-3/6">
-                            <CommonInput 
-                                label={(formik.values.criteria == 'percentage') ? "Porcentaje" : "Cantidad por alumno"}    
-                                value={formik.values.criteriaValue}
-                                name="criteriaValue"
-                                id="criteriaValue" 
-                                type="number" 
-                                placeholder={(formik.values.criteria == 'percentage') ? "Porcentaje" : "Cantidad por alumno"}
-                                onChange={formik.handleChange}
-                            />
-                        </div></>)}
+                            <PlusButton fontSize="large" className="w-8 h-8 mt-0 ml-3" onClick={() => {
+                                    setNewProfessor(true);
+                                }
+                            }/>
+                        </div>)}
+                        {newProfessor && (<ProfessorInfo professors={professors} closeNewProfessor={(value) => setNewProfessor(value)} pushProfessor={(v) => {
+                                setCourseProfessors([...courseProfessors, v]);
+                                setNewProfessor(false);
+                            }
+                        } />)}
+                        </>)}
                     </form>
                 </>
                 } />

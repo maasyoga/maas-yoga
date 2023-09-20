@@ -5,10 +5,14 @@ import tasksService from "../services/tasksService";
 import clazzesService from "../services/clazzesService";
 import collegesService from "../services/collegesService";
 import paymentsService from "../services/paymentsService";
+import professorsService from "../services/professorsService";
 import templatesService from "../services/templatesService";
 import categoriesService from "../services/categoriesService";
 import userService from "../services/userService";
 import { CASH_PAYMENT_TYPE } from "../constants";
+import logsService from "../services/logsService";
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import { GoogleApiProvider } from 'react-gapi'
 
 export const Context = createContext();
 
@@ -35,6 +39,10 @@ export const Provider = ({ children }) => {
     const [isAlertActive, setIsAlertActive] = useState(false);
     const [alertMessage, setAlertMessage] = useState('');
     const [alertStatus, setAlertStatus] = useState('');
+    const [professors, setProfessors] = useState([]);
+    const [isLoadingProfessors, setIsLoadingProfessors] = useState(true);
+    const [logs, setLogs] = useState([]);
+    const [logsInit, setLogsInit] = useState(false);
 
     useEffect(() => {
         if (user === null) return;
@@ -111,6 +119,15 @@ export const Provider = ({ children }) => {
               changeAlertStatusAndMessage(true, 'error', 'No fue posible obtener los usuarios... Por favor recarge la página.');
             }
         }
+        const getProffesors = async () => {
+            const pfrs = await professorsService.getProffesors();
+            pfrs.forEach(professor => {
+                professor.label = professor.name;
+                professor.value = professor.id;
+            })
+            setProfessors(pfrs);
+            setIsLoadingProfessors(false);
+        }
         getUsers();
         getStudents();
         getCourses();
@@ -120,6 +137,7 @@ export const Provider = ({ children }) => {
         getTemplates();
         getClazzes();
         getCategories();
+        getProffesors();
     }, [user]);
 
     useEffect(() => {
@@ -143,22 +161,106 @@ export const Provider = ({ children }) => {
     const getStudentById = studentId => students.find(student => student.id === studentId);
     const getHeadquarterById = headquarterId => colleges.find(headquarter => headquarter.id === headquarterId);
     const getItemById = itemId => categories.find(category => category.items.find(item => item.id === itemId)).items.find(item => item.id === itemId);
+    const getUserById = userId => users.find(user => user.id === userId);
+    const getProfessorById = professorId => professors.find(professor => professor.id === professorId);
+
+    const getProfessorDetailsById = async professorId => {
+        const localProfessor = getProfessorById(professorId);
+        if (localProfessor) {
+            if ("courses" in localProfessor) {
+                return localProfessor;
+            }
+            const professor = await professorsService.getProfessor(professorId);
+            setProfessors(prev => prev.map(p => {
+                if (p.id === professorId) {
+                    return professor;
+                } else {
+                    return p;
+                }
+            }))
+            return professor;
+        } else {
+            const professor = await professorsService.getProfessor(professorId);
+            setProfessors(prev => [...professors, professor]);
+            return professor;
+        }
+    }
+
+    const newProfessorPayment = async (professorId, courseId, periodFrom, periodTo, value) => {
+        const payment = {
+            professorId,
+            courseId,
+            periodFrom,
+            periodTo,
+            at: new Date(),
+            operativeResult: new Date(),
+            type: CASH_PAYMENT_TYPE,
+            value: value*-1,
+            verified: false,
+        }
+        const createdPayment = await informPayment(payment);
+        //const professor = await professorsService.getProfessor(professorId);
+        setProfessors(prev => prev.map(p => {
+            if (p.id === professorId) {
+                p.payments.push(createdPayment);
+            }
+            return p;
+        }));
+    }
 
     const informPayment = async payment => {
-        const createdPayment = await paymentsService.informPayment(payment);
-        changeAlertStatusAndMessage(true, 'success', 'El movimiento fue informado exitosamente!')
-        createdPayment.user = user;
-        if (createdPayment.courseId !== null)
-            createdPayment.course = getCourseById(createdPayment.courseId);
-        if (createdPayment.studentId)
-            createdPayment.student = getStudentById(createdPayment.studentId);
-        if (createdPayment.headquarterId)
-            createdPayment.headquarter = getHeadquarterById(createdPayment.headquarterId);
-        if (createdPayment.itemId)
-            createdPayment.item = getItemById(createdPayment.itemId);
-        setPayments(current => [...current, createdPayment]);
-        return createdPayment;
+        try {
+            const createdPayment = await paymentsService.informPayment(payment);
+            changeAlertStatusAndMessage(true, 'success', 'El movimiento fue informado exitosamente!')
+            createdPayment.user = user;
+            if (createdPayment.courseId !== null)
+                createdPayment.course = getCourseById(createdPayment.courseId);
+            if (createdPayment.studentId)
+                createdPayment.student = getStudentById(createdPayment.studentId);
+            if (createdPayment.headquarterId)
+                createdPayment.headquarter = getHeadquarterById(createdPayment.headquarterId);
+            if (createdPayment.itemId)
+                createdPayment.item = getItemById(createdPayment.itemId);
+            setPayments(current => [...current, createdPayment]);
+            return createdPayment;
+        } catch(e) {
+            changeAlertStatusAndMessage(true, 'error', 'El movimiento no pudo ser informado... Por favor inténtelo nuevamente.');
+        }
     };
+
+    const editPayment = async payment => {
+        console.log(payment)
+        try {
+            const editedPayment = await paymentsService.editPayment(payment);
+            changeAlertStatusAndMessage(true, 'success', 'El movimiento fue editado exitosamente!')
+            editedPayment.user = user;
+            if (editedPayment.courseId !== null)
+                editedPayment.course = getCourseById(editedPayment.courseId);
+            if (editedPayment.studentId)
+                editedPayment.student = getStudentById(editedPayment.studentId);
+            if (editedPayment.headquarterId)
+                editedPayment.headquarter = getHeadquarterById(editedPayment.headquarterId);
+            if (editedPayment.itemId)
+                editedPayment.item = getItemById(editedPayment.itemId);
+            console.log(editedPayment);
+            setPayments(current => current.map(p => p.id === payment.id ? merge(p, editedPayment) : p));
+        } catch(e) {
+            changeAlertStatusAndMessage(true, 'error', 'El movimiento no pudo ser editado... Por favor inténtelo nuevamente.');
+        }
+    };
+
+    const getLogs = async () => {
+        if (!logsInit) {
+            const l = await logsService.getAll();
+            l.forEach(log => {
+                log.user = getUserById(log.userId);
+            })
+            setLogs(l);
+            return l;
+        } else {
+            return logs;
+        }
+    }
 
     const verifyPayment = async (paymentId) => {
         const veryfiedPayment = await paymentsService.verifyPayment(paymentId);
@@ -196,6 +298,15 @@ export const Provider = ({ children }) => {
         return createdCollege;
     }
 
+    const newProfessor = async (professor) => {
+        const createdProfessor = await professorsService.newProfessor(professor);
+        createdProfessor.label = professor.name;
+        createdProfessor.value = professor.id;
+        changeAlertStatusAndMessage(true, 'success', 'El profesor fue agregado exitosamente!')
+        setProfessors(current => [...current, createdProfessor]);
+        return createdProfessor;
+    }
+
     const newClazz = async (clazz) => {
         const createdClazz = await clazzesService.newClazz(clazz);
         changeAlertStatusAndMessage(true, 'success', 'La clase fue creada exitosamente!');
@@ -216,6 +327,12 @@ export const Provider = ({ children }) => {
         await studentsService.deleteStudent(studentId);
         changeAlertStatusAndMessage(true, 'success', 'El estudiante fue borrado exitosamente!')
         setStudents(current => current.filter(student => student.id !== studentId));
+    }
+
+    const deleteProfessor = async professorId => {
+        await professorsService.deleteProfessor(professorId);
+        changeAlertStatusAndMessage(true, 'success', 'El profesor fue borrado exitosamente!')
+        setProfessors(current => current.filter(prof => prof.id !== professorId));
     }
 
     const editStudent = async (studentId, student) => {
@@ -296,6 +413,13 @@ export const Provider = ({ children }) => {
         changeAlertStatusAndMessage(true, 'success', 'El curso fue editado exitosamente!');
         setCourses(current => current.map(s => s.id === courseId ? merge(s, course) : s));
         return editedCourse;
+    }
+
+    const editProfessor = async (professorId, professor) => {
+        const editedProfessor = await professorsService.editProfessor(professorId, professor);
+        changeAlertStatusAndMessage(true, 'success', 'El profesor fue editado exitosamente!');
+        setProfessors(current => current.map(s => s.id === professorId ? merge(s, professor) : s));
+        return editedProfessor;
     }
 
     const addStudent = async (courseId, studentsIds) => {
@@ -427,14 +551,24 @@ export const Provider = ({ children }) => {
     }
 
     const calcProfessorsPayments = async (from, to) => {
-        const data = await coursesService.calcProfessorsPayments(from, to);
+        let data = await coursesService.calcProfessorsPayments(from, to);
         data.forEach(d => {
-            d.payments.forEach(p => {
-                p.student = students.find(s => s.id === p.studentId);
-                p.user = users.find(u => u.id === p.userId);
-                p.course = courses.find(c => c.id === p.courseId);
+            d.professors = d.professors.filter(professor => "result" in professor);
+            d.professorsNames = d.professors.map(p => p.name);
+            d.professors.forEach(professor => {
+                professor.result.payments.forEach(payment => {
+                    if (payment.courseId !== null)
+                        payment.course = getCourseById(payment.courseId);
+                    if (payment.studentId)
+                        payment.student = getStudentById(payment.studentId);
+                    if (payment.headquarterId)
+                        payment.headquarter = getHeadquarterById(payment.headquarterId);
+                    if (payment.itemId)
+                        payment.item = getItemById(payment.itemId);
+                    if (payment.userId)
+                        payment.user = getUserById(payment.userId);
+                });
             });
-            d.course = courses.find(c => c.id === d.courseId);
         });
         return data;
     }
@@ -496,10 +630,27 @@ export const Provider = ({ children }) => {
             editCategory,
             newCategory,
             verifyClazz,
+            getProfessorDetailsById,
+            newProfessorPayment,
+            editPayment,
+            professors,
+            newProfessor,
+            deleteProfessor,
+            editProfessor,
             users,
             changeAlertStatusAndMessage,
             calcProfessorsPayments,
             updateUnverifiedPayment,
-        }}>{children}</Context.Provider>
+            getHeadquarterById,
+            getItemById,
+            getLogs,
+            user,
+        }}>
+            <GoogleApiProvider clientId={user?.googleDriveCredentials?.clientId}>
+                <GoogleOAuthProvider clientId={user?.googleDriveCredentials?.clientId}>
+                    {children}
+                </GoogleOAuthProvider>
+            </GoogleApiProvider>
+        </Context.Provider>
     );
 }

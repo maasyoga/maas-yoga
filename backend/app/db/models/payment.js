@@ -20,6 +20,10 @@ const payment = (sequelize) => {
       type: Sequelize.DataTypes.DATE,
       allowNull: false,
     },
+    operativeResult: {
+      type: Sequelize.DataTypes.DATE,
+      allowNull: true,
+    },
     periodFrom: {
       type: Sequelize.DataTypes.DATEONLY,
       allowNull: true,
@@ -28,7 +32,7 @@ const payment = (sequelize) => {
       type: Sequelize.DataTypes.DATEONLY,
       allowNull: true,
     },
-    professor: {
+    driveFileId: {
       type: Sequelize.STRING,
       allowNull: true,
     },

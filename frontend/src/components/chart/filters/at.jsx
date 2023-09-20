@@ -40,7 +40,7 @@ export default function FilterPaymentAt({ onChange }) {
 
     return (
     <div>
-        <span className="block text-gray-700 text-sm font-bold mb-2 mt-3">Fecha del pago</span>
+        <span className="block text-gray-700 text-sm font-bold mb-2 mt-3">Fecha indicada</span>
         <div className="flex">
             <Select placeholder="Seleccionar" className="payment-filter-width mt-3  mr-8" options={typeCriterias} value={typeCriteriaSelected} onChange={setTypeCriteriaSelected}/>
             <div className="my-auto flex">

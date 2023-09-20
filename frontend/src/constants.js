@@ -1,5 +1,12 @@
 export const CASH_PAYMENT_TYPE = 'Efectivo';
 
+export const LOG_PAYMENT_ACTIONS = {
+    UPDATE: "UPDATE",
+    CREATE: "CREATE",
+    DELETE: "DELETE",
+    VERIFICATION: "VERIFICATION",
+  };
+
 export const PAYMENT_OPTIONS = [
     {
         label: 'Mercado pago',
@@ -20,6 +27,14 @@ export const PAYMENT_OPTIONS = [
     {
         label: 'Tarjeta de credito',
         value: 'Tarjeta de credito'
+    },
+    {
+        label: 'Débito de cuenta',
+        value: 'Débito de cuenta'
+    },
+    {
+        label: 'Débito de tarjeta',
+        value: 'Débito de tarjeta'
     },
 ];
 

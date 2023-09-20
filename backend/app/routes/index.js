@@ -10,6 +10,8 @@ import headquartersRoute from "./headquartersRoute.js";
 import templatesRoute from "./templatesRoute.js";
 import categoriesRoute from "./categoriesRoute.js";
 import clazzesRoute from "./clazzesRoute.js";
+import professorsRoute from "./professorsRoute.js";
+import logsRoute from "./logRoute.js";
 
 const router = Router();
 
@@ -24,5 +26,7 @@ router.use("/tasks", tasksRoute);
 router.use("/templates", templatesRoute);
 router.use("/categories", categoriesRoute);
 router.use("/clazzes", clazzesRoute);
+router.use("/professors", professorsRoute);
+router.use("/logs", logsRoute);
 
 export default router;

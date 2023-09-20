@@ -1,6 +1,7 @@
 import { StatusCodes } from "http-status-codes";
 import { payment, course, student, user, file } from "../db/index.js";
 import { PAYMENT_TYPES } from "../utils/constants.js";
+import * as logService from "./logService.js";
 
 /**
  * 
@@ -16,18 +17,21 @@ export const create = async (paymentParam, informerId) => {
       p.oldId = p.id;
       delete p.id;
     }
-    p.verified = true;
+    if (!("verified" in p))
+      p.verified = true;
     p.userId = informerId;
   });
   const createdPayments = await payment.bulkCreate(paymentParam);
+  logService.logCreatedPayments(createdPayments);
   return (createdPayments.length === 1) ? createdPayments[0] : createdPayments;
 };
 
-export const deleteById = async (id) => {
+export const deleteById = async (id, userId) => {
   const p = await payment.findByPk(id);
   if (p.fileId) {
     file.destroy({ where: { id: p.fileId } });
   }
+  logService.deletePayment(userId);
   return p.destroy();
 };
 
@@ -42,15 +46,15 @@ export const getAllByCourseId = async (courseId) => {
 export const getAll = async (specification) => {
   return payment.findAll({
     where: specification.getSequelizeSpecification(),
-    include: specification.getSequelizeSpecificationAssociations([user, student, course])
+    include: specification.getSequelizeSpecificationAssociations([user, student, course, file])
   });
 };
 
-export const updateUnverifiedPayment = async (id, data) => {
-  const p = await payment.findByPk(id);
-  if (p.verified)
-    throw ({ statusCode: StatusCodes.BAD_REQUEST, message: "Payment must be unverified to update" });
+export const updateUnverifiedPayment = async (id, data, userId) => {
+  if (data.verified)
+    throw ({ statusCode: StatusCodes.BAD_REQUEST, message: "Can not change verified with this endpoint" });
   await payment.update(data, { where: { id } });
+  logService.logUpdate(id, userId);
   return payment.findByPk(id, { include: [user,student,course] });
 };
 
@@ -58,5 +62,9 @@ export const changeVerified = async (id, verified, verifiedBy) => {
   const newData = { verified };
   if (verified)
     newData.verifiedBy = verifiedBy;
+  if (verified)
+    logService.logVerified(id, verifiedBy);
+  else
+    logService.logUpdate(id, verifiedBy);
   return payment.update(newData, { where: { id } });
 };

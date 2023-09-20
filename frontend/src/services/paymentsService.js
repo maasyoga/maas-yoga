@@ -42,12 +42,18 @@ export default {
                 "courseId": paymentInfo.courseId,
                 "studentId": paymentInfo.studentId,
                 "itemId": paymentInfo.itemId,
-                "type": paymentInfo.paymentType,
+                "type": paymentInfo.type,
                 "fileId": paymentInfo.fileId,
-                "value": paymentInfo.paymentValue,
+                "value": paymentInfo.value,
                 "at": paymentInfo.at,
+                "operativeResult": paymentInfo.operativeResult,
                 "note": paymentInfo.note,
-            }                
+                "periodFrom": paymentInfo.periodFrom,
+                "periodTo": paymentInfo.periodTo,
+                "professorId": paymentInfo.professorId,
+                "verified": paymentInfo.verified,
+                "driveFileId": paymentInfo.driveFileId,
+            }    
             axios
                 .post(baseUrl + `api/v1/payments`, data, {})
                 .then((response) => {
@@ -93,6 +99,19 @@ export default {
             const baseUrl = process.env.REACT_APP_BACKEND_HOST;
             axios
                 .delete(baseUrl + `api/v1/payments/${paymentId}`, {})
+                .then((response) => {
+                    resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.data)
+                })
+        });
+    },
+    editPayment(payment) {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            axios
+                .put(baseUrl + `api/v1/payments/${payment.id}`, payment)
                 .then((response) => {
                     resolve(response.data);
                 })
@@ -167,19 +186,21 @@ export default {
                 })
         });
     },
-    getAllByYear(from = new Date()) {
+    getAllByYear(byCreatedAt, from = new Date()) {
         const startOfYear = new Date(from.getFullYear(), 0, 1).getTime();
         const endOfYear = new Date(from.getFullYear(), 11, 31).getTime();
-        return this.getByQuery(`at between ${startOfYear}:${endOfYear}`)
+        const field = byCreatedAt ? "createdAt" : "at";
+        return this.getByQuery(`${field} between ${startOfYear}:${endOfYear}`)
             .then(data => ({ data, period: { from: startOfYear, to: endOfYear } }));
     },
-    getAllByMonth(from = new Date()) {
+    getAllByMonth(byCreatedAt, from = new Date()) {
         const startOfMonth = new Date(from.getFullYear(), from.getMonth(), 1).getTime();
         const endOfMonth = new Date(from.getFullYear(), from.getMonth() + 1, 0).getTime();
-        return this.getByQuery(`at between ${startOfMonth}:${endOfMonth}`)
+        const field = byCreatedAt ? "createdAt" : "at";
+        return this.getByQuery(`${field} between ${startOfMonth}:${endOfMonth}`)
             .then(data => ({ data, period: { from: startOfMonth, to: endOfMonth } }));
     },
-    getAllByWeek(from = new Date()) {
+    getAllByWeek(byCreatedAt, from = new Date()) {
         let prevMonday = from;
         prevMonday.setDate(prevMonday.getDate() - (prevMonday.getDay() == 1 ? 7 : (prevMonday.getDay() + (7 - 1)) % 7 ));
         prevMonday.setHours(0);
@@ -190,7 +211,8 @@ export default {
         until.setMinutes(59);
         until = until.getTime();
         prevMonday = prevMonday.getTime();
-        return this.getByQuery(`at between ${prevMonday}:${until}`)
+        const field = byCreatedAt ? "createdAt" : "at";
+        return this.getByQuery(`${field} between ${prevMonday}:${until}`)
             .then(data => ({ data, period: { from: prevMonday, to: until } }));
     },
     verifyPayment(paymentId) {
