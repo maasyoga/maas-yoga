@@ -62,6 +62,7 @@ export default function Courses(props) {
         setIsDateSelected(false);
         setNewProfessor(false);
         setStartAt(dayjs(new Date()));
+        setEndAt(dayjs(new Date()));
         setCourseProfessors([]);
     }
 
@@ -99,6 +100,8 @@ export default function Courses(props) {
         setDisplayModal(true);
         setCourseId(course.id);
         setCourseToEdit(course);
+        setStartAt(dayjs(new Date(course.startAt)));
+        setEndAt(dayjs(new Date(course.endAt)));
     }
 
     const openStudentsModal = (students, courseName) => {
@@ -129,6 +132,18 @@ export default function Courses(props) {
         })
         setSelectedOption(arr)
     };
+
+    const getStudents = (course) => {
+        let students = [];
+        if(course.students) {
+            course.students.forEach(student => {
+                student.label = student.name + ' ' + student.lastName;
+                student.value = student.id;
+            })
+            students = course.students;
+        }
+        return students;
+    }
 
     const handleChangeTaskStatus = async (studentId, taskStatus) => {
         try {
@@ -319,6 +334,8 @@ export default function Courses(props) {
         },
     ];
 
+
+
     const formik = useFormik({
         enableReinitialize: true,
         initialValues: {
@@ -470,7 +487,7 @@ export default function Courses(props) {
                                 <label className="block text-gray-700 text-sm font-bold mb-2">
                                     Asignar alumnos
                                 </label>
-                                <Select isMulti onChange={handleChange} options={students} />
+                                <Select isMulti onChange={handleChange} options={students} defaultValue={(edit && (courseToEdit.students)) ? getStudents(courseToEdit) : []} />
                         </div>
                         {courseProfessors.length > 0 && (<>
                         <label className="block text-gray-700 text-sm font-bold mb-2">
