@@ -431,9 +431,10 @@ export const Provider = ({ children }) => {
 
     const editCourse = async (courseId, course) => {
         const editedCourse = await coursesService.editCourse(courseId, course);
-        course.id = courseId;
         changeAlertStatusAndMessage(true, 'success', 'El curso fue editado exitosamente!');
-        setCourses(current => current.map(s => s.id === courseId ? merge(s, course) : s));
+        editedCourse.periods = course.professors;
+        setCourses(current => current.map(s => s.id === courseId ? merge(s, editedCourse) : s));
+        console.log(courses)
         return editedCourse;
     }
 
@@ -734,6 +735,7 @@ export const Provider = ({ children }) => {
             getItemById,
             getLogs,
             getProfessorById,
+            getCourseById,
             user,
         }}>
             <GoogleApiProvider clientId={user?.googleDriveCredentials?.clientId}>
