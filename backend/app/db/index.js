@@ -19,6 +19,7 @@ const sslConfig = config.sslConnection ? {
 
 const sequelize = new Sequelize(config.database, config.username, config.password, {
   host: config.host,
+  port: config.port,
   dialect: config.dialect,
   ...sslConfig,
   operatorsAliases: "0",
@@ -72,7 +73,7 @@ clazz.hasMany(payment, { foreignKey: { allowNull: true }, targetKey: "id" });
 headquarter.hasMany(payment, { foreignKey: { allowNull: true }, targetKey: "id" });
 user.hasOne(payment, { foreignKey: { allowNull: true }, targetKey: "id" });
 payment.belongsTo(user, {
-  foreignKey: { name: 'verifiedBy', allowNull: true },
+  foreignKey: { name: "verifiedBy", allowNull: true },
 });
 payment.belongsTo(file, { foreignKey: { allowNull: true } });
 user.hasOne(payment, { foreignKey: { allowNull: true }, targetKey: "verifiedBy" });
