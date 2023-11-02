@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useContext } from "react";
 import Modal from "../components/modal";
-import AddIcon from '@mui/icons-material/Add';
-import { orange } from '@mui/material/colors';
 import LocalLibraryIcon from '@mui/icons-material/LocalLibrary';
 import { useFormik } from 'formik';
 import CommonInput from "../components/commonInput";
 import "react-datepicker/dist/react-datepicker.css";
-import coursesService from "../services/coursesService";
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import Select from 'react-select';
@@ -22,11 +19,14 @@ import TaskModal from "../components/courses/taskModal";
 import Table from "../components/table";
 import { Context } from "../context/Context";
 import DoneOutlineIcon from '@mui/icons-material/DoneOutline';
+import Tooltip from '@mui/material/Tooltip';
 import RemoveDoneIcon from '@mui/icons-material/RemoveDone';
 import Container from "../components/container";
 import PlusButton from "../components/button/plus";
 import ProfessorInfo from "../components/courses/professorInfo";
 import CourseDetailModal from "../components/modal/courseDetailModal";
+import ButtonPrimary from "../components/button/primary";
+import PendingPaymentsModal from "../components/modal/pendingPaymentsModal";
 
 export default function Courses(props) {
     const { courses, students, professors, isLoadingStudents, deleteCourse, addStudent, newCourse, editCourse, changeTaskStatus, changeAlertStatusAndMessage } = useContext(Context);
@@ -53,6 +53,7 @@ export default function Courses(props) {
     const [courseProfessors, setCourseProfessors] = useState([]);
     const [courseDetails, setCourseDetails] = useState(null);
     const [periodToEdit, setPeriodToEdit] = useState({});
+    const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
     const setDisplay = (value) => {
         setDisplayModal(value);
@@ -212,11 +213,6 @@ export default function Courses(props) {
             sortable: true,
         },
         {
-            name: 'Duración',
-            selector: row => row.duration,
-            sortable: true,
-        },
-        {
             name: 'Alumnos',
             selector: row => {return (<div className="flex-row"><button className="underline text-yellow-900 mx-1" onClick={() => openStudentsModal(row.students, row.title)}>Ver alumnos</button></div>)},
             sortable: true,
@@ -228,7 +224,7 @@ export default function Courses(props) {
         },
         {
             name: 'Acciones',
-            cell: row => { return (<div className="flex flex-nowrap"><button className="rounded-full p-1 bg-green-200 hover:bg-green-300 mx-1" onClick={() => openAddTaskmodal(row.id, row.title)}><AddTaskIcon /></button><button className="rounded-full p-1 bg-red-200 hover:bg-red-300 mx-1" onClick={() => openDeleteModal(row.id)}><DeleteIcon /></button><button className="rounded-full p-1 bg-orange-200 hover:bg-orange-300 mx-1" onClick={() => openEditModal(row)}><EditIcon /></button></div>)
+            cell: row => { return (<div className="flex flex-nowrap"><button className="rounded-full p-1 bg-green-200 hover:bg-green-300 mx-1" onClick={() => openAddTaskmodal(row.id, row.title)}><Tooltip title="Agregar tarea"><AddTaskIcon /></Tooltip></button><button className="rounded-full p-1 bg-red-200 hover:bg-red-300 mx-1" onClick={() => openDeleteModal(row.id)}><Tooltip title="Borrar"><DeleteIcon /></Tooltip></button><button className="rounded-full p-1 bg-orange-200 hover:bg-orange-300 mx-1" onClick={() => openEditModal(row)}><Tooltip title="Editar"><EditIcon /></Tooltip></button></div>)
         },
             sortable: true,
         },
@@ -359,7 +355,23 @@ export default function Courses(props) {
         },
     ];
 
+    useEffect(() => {
+        const handleWindowResize = () => {
+        setWindowWidth(window.innerWidth);
+        };
 
+        window.addEventListener('resize', handleWindowResize);
+
+        return () => {
+        window.removeEventListener('resize', handleWindowResize);
+        };
+    }, []);
+
+    let style = {};
+
+    if (windowWidth >= 768) {
+        style.minWidth = '750px';
+    }
 
     const formik = useFormik({
         enableReinitialize: true,
@@ -433,7 +445,7 @@ export default function Courses(props) {
                     noDataComponent={opResult}
                     pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
                 />
-                <div className="flex justify-end">
+                <div className="flex justify-end mt-6">
                     <PlusButton onClick={() => {
                             setDisplayModal(true);
                             setStartAt(dayjs(new Date()));
@@ -541,19 +553,19 @@ export default function Courses(props) {
                 } />
                 <TaskModal isModalOpen={addTaskModal} setDisplay={setDisplayTask} courseName={courseName} courseId={courseId} />
                 <Modal icon={<DeleteIcon />} open={deleteModal} setDisplay={setDisplay} title="Eliminar curso" buttonText={isLoading ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">Eliminando...</span></>) : <span>Eliminar</span>} onClick={handleDeleteCourse} children={<><div>Esta a punto de elimnar este curso. ¿Desea continuar?</div></>} />
-                <Modal style={{ minWidth: '750px' }} hiddingButton icon={<SchoolIcon />} open={displayStudentsModal} setDisplay={setDisplay} closeText="Salir" title={'Alumnos del curso ' + '"' + courseName + '"'} children={<><div>   <Table
+                <Modal style={style} hiddingButton icon={<SchoolIcon />} open={displayStudentsModal} setDisplay={setDisplay} closeText="Salir" title={'Alumnos del curso ' + '"' + courseName + '"'} children={<><div>   <Table
                         columns={studentsColumns}
                         data={studentsLists}
                         noDataComponent="Este curso aun no posee alumnos"
                         pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
                     /></div></>} />
-                <Modal style={{ minWidth: '750px' }} hiddingButton icon={<SchoolIcon />} open={isTaskStudentModal} setDisplay={setDisplay} closeText="Salir" title={'Alumnos de la tarea ' + '"' + courseName + '"'} children={<><div>   <Table
+                <Modal style={style} hiddingButton icon={<SchoolIcon />} open={isTaskStudentModal} setDisplay={setDisplay} closeText="Salir" title={'Alumnos de la tarea ' + '"' + courseName + '"'} children={<><div>   <Table
                     columns={taskStudentsColumns}
                     data={studentsLists}
                     noDataComponent="Esta tarea aun no posee alumnos"
                     pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
                 /></div></>} />
-                <Modal style={{ minWidth: '750px' }} hiddingButton icon={<SchoolIcon />} open={displayTasksModal} setDisplay={setDisplay} closeText="Salir" title={'Tareas del curso ' + '"' + courseName + '"'} children={<><div>   <Table
+                <Modal style={style} hiddingButton icon={<SchoolIcon />} open={displayTasksModal} setDisplay={setDisplay} closeText="Salir" title={'Tareas del curso ' + '"' + courseName + '"'} children={<><div>   <Table
                     columns={taskColumn}
                     data={tasksLists}
                     noDataComponent="Este curso aun no posee tareas"

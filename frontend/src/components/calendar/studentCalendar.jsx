@@ -6,7 +6,12 @@ import { useState } from "react";
 import GreenBudget from "../badget/green";
 import PendingBudget from "../badget/pendingBudget";
 import RedBudget from "../badget/red";
-import { getMonthNames } from "../../utils";
+import { formatDateDDMMYY, getMonthNames } from "../../utils";
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
+import BlueBudget from "../badget/blue";
+import Tooltip from '@mui/material/Tooltip';
+import { STUDENT_MONTHS_CONDITIONS } from "../../constants";
 
 export default function StudentCalendar({ periods }) {
     const [currentYear, setCurrentYear] = useState(null);
@@ -20,13 +25,15 @@ export default function StudentCalendar({ periods }) {
     }
 
     const getMonthDetail = month => {
-        const status = periods[currentYear][month];
-        if (status == 'paid') {
-            return (<GreenBudget>Pagado</GreenBudget>);
-        } else if (status == 'waiting') {
+        const status = periods[currentYear][month].condition;
+        if (status == STUDENT_MONTHS_CONDITIONS.PAID) {
+            return (<Tooltip title={(<><div>Fecha que se realizo el pago: {formatDateDDMMYY(periods[currentYear][month].payment.at)}</div><div>Importe ${periods[currentYear][month].payment.value}</div></>)}><span><GreenBudget><CheckIcon fontSize="small"/>Pagado</GreenBudget></span></Tooltip>);
+        } else if (status == STUDENT_MONTHS_CONDITIONS.PENDING) {
             return (<PendingBudget>Pendiente</PendingBudget>);
-        } else if (status == 'not_paid') {
-            return (<RedBudget>No pagado</RedBudget>);
+        } else if (status == STUDENT_MONTHS_CONDITIONS.NOT_PAID) {
+            return (<RedBudget><CloseIcon fontSize="small"/>No pagado</RedBudget>);
+        } else if (status == STUDENT_MONTHS_CONDITIONS.NOT_TAKEN) {
+            return (<BlueBudget>No inscripto</BlueBudget>);
         }
     }
 

@@ -9,7 +9,7 @@ import professorsService from "../services/professorsService";
 import templatesService from "../services/templatesService";
 import categoriesService from "../services/categoriesService";
 import userService from "../services/userService";
-import { CASH_PAYMENT_TYPE } from "../constants";
+import { CASH_PAYMENT_TYPE, STUDENT_MONTHS_CONDITIONS } from "../constants";
 import logsService from "../services/logsService";
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { GoogleApiProvider } from 'react-gapi'
@@ -159,12 +159,12 @@ export const Provider = ({ children }) => {
         return JSON.parse(JSON.stringify(item1));
     }
 
-    const getCourseById = courseId => courses.find(course => course.id === courseId);
-    const getStudentById = studentId => students.find(student => student.id === studentId);
-    const getHeadquarterById = headquarterId => colleges.find(headquarter => headquarter.id === headquarterId);
-    const getItemById = itemId => categories.find(category => category.items.find(item => item.id === itemId)).items.find(item => item.id === itemId);
-    const getUserById = userId => users.find(user => user.id === userId);
-    const getProfessorById = professorId => professors.find(professor => professor.id === professorId);
+    const getCourseById = courseId => courses.find(course => course.id == courseId);
+    const getStudentById = studentId => students.find(student => student.id == studentId);
+    const getHeadquarterById = headquarterId => colleges.find(headquarter => headquarter.id == headquarterId);
+    const getItemById = itemId => categories.find(category => category.items.find(item => item.id == itemId)).items.find(item => item.id == itemId);
+    const getUserById = userId => users.find(user => user.id == userId);
+    const getProfessorById = professorId => professors.find(professor => professor.id == professorId);
 
     const getProfessorDetailsById = async professorId => {
         const localProfessor = getProfessorById(professorId);
@@ -519,6 +519,24 @@ export const Provider = ({ children }) => {
         }));
     }
 
+    const getPendingPayments = async () => {
+        const response = { students: {} };
+        const data = await studentsService.getPendingPayments();
+        Object.keys(data.students).forEach(studentId => {
+            response.students[studentId] = getStudentById(studentId);
+            response.students[studentId].courses = [];
+            const studentCoursesIds = Object.keys(data.students[studentId].courses);
+            studentCoursesIds.forEach(courseId => {
+                const course = getCourseById(courseId);
+                const { memberSince, periods } = data.students[studentId].courses[courseId];
+                course.periods = periods;
+                course.memberSince = memberSince;
+                response.students[studentId].courses.push(course);
+            });
+        });
+        return response;
+    };
+
     const getPendingPaymentsByCourseFromStudent = student => {
         const series = (from, to) => {
             from = new Date(from);
@@ -532,6 +550,7 @@ export const Provider = ({ children }) => {
                 from.setMonth(from.getMonth() + 1);
                 serieDates.push(getFirstDayDateOfMonth(from));
             }
+            serieDates.pop();
             return serieDates;
         }
         
@@ -540,6 +559,8 @@ export const Provider = ({ children }) => {
         const currentYear = new Date().getFullYear();
         const currentMonth = new Date().getMonth()+1;
         student.courses.forEach(course => {
+            let memberSince = student.courseStudents.find(cs => cs.courseId == course.id).createdAt;
+            memberSince = new Date(memberSince);
             const periods = {};
             series(course.startAt, course.endAt)
             .forEach(date => {
@@ -552,9 +573,18 @@ export const Provider = ({ children }) => {
                     }
                 }
                 if ((year > currentYear) || (month > currentMonth && year == currentYear)) {
-                    periods[year][month] = "waiting";
+                    periods[year][month] = {
+                        condition: STUDENT_MONTHS_CONDITIONS.PENDING
+                    };
                 } else {
-                    periods[year][month] = "not_paid";
+                    periods[year][month] = {
+                        condition: STUDENT_MONTHS_CONDITIONS.NOT_PAID
+                    };
+                }
+                if (!((year > memberSince.getFullYear()) || (month > (memberSince.getMonth()) && year == memberSince.getFullYear()))) {
+                    periods[year][month] = {
+                        condition: STUDENT_MONTHS_CONDITIONS.NOT_TAKEN
+                    };
                 }
             });
             student.payments.forEach(payment => {
@@ -564,7 +594,10 @@ export const Provider = ({ children }) => {
                 const year = operativeResult.getFullYear();
                 const month = operativeResult.getMonth() +1;
                 if (year in periods && month in periods[year]) {
-                    periods[year][month] = "paid";
+                    periods[year][month] = {
+                        condition: STUDENT_MONTHS_CONDITIONS.PAID,
+                        payment,
+                    };
                 }
             });
             let years = Object.keys(periods);
@@ -573,13 +606,13 @@ export const Provider = ({ children }) => {
                 const y = years.pop();
                 let m = 1;
                 while (isUpToDate && m <= 12) {
-                    if (periods[y][m] === 'not_paid') {
+                    if (periods[y][m].condition === STUDENT_MONTHS_CONDITIONS.NOT_PAID) {
                         isUpToDate = false;
                     }
                     m++;
                 }
             }
-            courses.push({ ...course, periods, isUpToDate })
+            courses.push({ ...course, memberSince, periods, isUpToDate })
         });
         return courses;        
     }
@@ -745,6 +778,7 @@ export const Provider = ({ children }) => {
             getProfessorById,
             getCourseById,
             user,
+            getPendingPayments,
         }}>
             <GoogleApiProvider clientId={user?.googleDriveCredentials?.clientId}>
                 <GoogleOAuthProvider clientId={user?.googleDriveCredentials?.clientId}>
