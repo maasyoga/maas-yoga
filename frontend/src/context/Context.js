@@ -138,83 +138,7 @@ export const Provider = ({ children }) => {
             });
             setAgendaLocations(locations);
         }
-        setAgendaLocations([
-            {
-                "id": "22",
-                "nombre": "Belgrano",
-                "address": "Tres de Febrero 1165",
-                "id_usuario": "1",
-                "indexed": "1",
-                "position": "2",
-                "create_at": "2016-01-08 00:00:25",
-                "update_at": "2016-11-29 11:43:04",
-                "packs_ids": ",261,262,263,264,265",
-                "show_locations": "1",
-                "show_wp": "1",
-                "label": "Belgrano",
-                "value": "22"
-            },
-            {
-                "id": "41",
-                "nombre": "Palermo - Bindu",
-                "address": "Charcas 4716 - 6to A",
-                "id_usuario": "1",
-                "indexed": "1",
-                "position": "0",
-                "create_at": "2022-11-05 20:55:20",
-                "update_at": "2022-11-05 20:55:20",
-                "packs_ids": ",261,262,263,264,265",
-                "show_locations": "1",
-                "show_wp": "1",
-                "label": "Palermo - Bindu",
-                "value": "41"
-            },
-            {
-                "id": "42",
-                "nombre": "Profesorado ",
-                "address": "BELGRANO 3 de febrero 1165 / RECOLETA  Ayacucho 1230 4to piso",
-                "id_usuario": "1",
-                "indexed": "1",
-                "position": "0",
-                "create_at": "2023-03-02 15:10:19",
-                "update_at": "2023-03-02 15:10:19",
-                "packs_ids": ",199,166",
-                "show_locations": "1",
-                "show_wp": "0",
-                "label": "Profesorado ",
-                "value": "42"
-            },
-            {
-                "id": "38",
-                "nombre": "Recoleta",
-                "address": "Ayacucho 1230 - 4to piso ",
-                "id_usuario": "1",
-                "indexed": "1",
-                "position": "0",
-                "create_at": "2021-01-03 13:57:19",
-                "update_at": "2021-01-03 13:57:19",
-                "packs_ids": ",261,262,263,264,265",
-                "show_locations": "1",
-                "show_wp": "1",
-                "label": "Recoleta",
-                "value": "38"
-            },
-            {
-                "id": "29",
-                "nombre": "Zoom",
-                "address": "Maas Yoga",
-                "id_usuario": "1",
-                "indexed": "1",
-                "position": "1",
-                "create_at": "2017-09-16 18:06:47",
-                "update_at": "2017-09-16 18:06:47",
-                "packs_ids": "38,206,59,266,267,269,270,268",
-                "show_locations": "1",
-                "show_wp": "1",
-                "label": "Zoom",
-                "value": "29"
-            }
-        ])
+        
         getUsers();
         getStudents();
         getCourses();
@@ -225,7 +149,7 @@ export const Provider = ({ children }) => {
         getClazzes();
         getCategories();
         getProffesors();
-        //getAgendaLocations();
+        getAgendaLocations();
     }, [user]);
 
     const getAgendaCashValues = async (year, month, location) => {
