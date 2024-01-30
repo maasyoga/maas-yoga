@@ -5,7 +5,7 @@ import Select from "react-select";
 import CommonInput from "../commonInput";
 import ButtonPrimary from "../button/primary";
 
-export default function AddProfessorPaymentModal({ criteriaValue, totalStudents, period, criteria, total, payments, addPayment, isOpen, onClose, professorName }) {
+export default function AddProfessorPaymentModal({ criteriaType, criteriaValue, totalStudents, period, criteria, total, payments, addPayment, isOpen, onClose, professorName }) {
     const values = [
         {
             value: 'default',
@@ -34,16 +34,24 @@ export default function AddProfessorPaymentModal({ criteriaValue, totalStudents,
     }
 
     useEffect(() => {
+        console.log(criteriaType, "criteriaType");
         if (amountStudents == '') {
             setError(false)
             return
         }
-        if ((amountStudents > totalStudents) || amountStudents <= 0) {
+        const amountStudentsInt = parseInt(amountStudents)
+        if ((amountStudentsInt > totalStudents) || amountStudentsInt <= 0) {
             setError(true)
             return
         }
         setError(false)
-        setTotalByStudents(criteriaValue * amountStudents)
+        const paymentValue = payments[0].value
+        if (criteriaType.split("-")[0] == "percentage") {
+            setTotalByStudents((criteriaValue/100) * paymentValue * amountStudentsInt)
+        } else {
+            setTotalByStudents(criteriaValue * amountStudentsInt)
+        }
+
     }, [amountStudents])
     
 
@@ -83,7 +91,7 @@ export default function AddProfessorPaymentModal({ criteriaValue, totalStudents,
                     {value.value == 'amount_students' && amountStudents != '' && 
                         <p>Alumnos seleccionados: <span className="font-bold">{amountStudents}</span></p>
                     }
-                    <p>{criteria}</p>
+                    <p>{criteria.split(".")[0]}</p>
                     <p className="mt-4">Total a pagar: <span className="font-bold">${value.value == "default" ? total : totalByStudents}</span></p>
                 </div>
                 
