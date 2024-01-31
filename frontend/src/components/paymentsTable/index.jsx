@@ -146,10 +146,13 @@ export default function PaymentsTable({ dateField = "at", className = "", paymen
                 if((row.student !== null) && (row.courseId !== null)) {
                     const course = getCourseById(row.courseId);
                     if(typeof course !== "undefined")  item = course?.title;
+                }else if((row.courseId !== null) && (row.value < 0) && (row.student === null) && (row.professorId !== null)) {
+                    const course = getCourseById(row.courseId);
+                    if(typeof course !== "undefined")  item = course?.title;
                 }
             }
             return item;
-        } catch(e) {
+        } catch (e) {
             return ""
         }
     }
@@ -184,7 +187,7 @@ export default function PaymentsTable({ dateField = "at", className = "", paymen
                 cell: row => <span className={(row.value >= 0) ? "text-gray-800 font-bold" : "text-gray-800"}>{getItemById(row)}</span>,
                 sortable: true,
                 searchable: true,
-                selector: row => "itemId" in row ? getItemById(row) : "",
+                selector: row => getItemById(row.itemId),
             },
             {
                 name: 'Abonado por',
