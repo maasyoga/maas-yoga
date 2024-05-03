@@ -23,10 +23,14 @@ import RemoveDoneIcon from '@mui/icons-material/RemoveDone';
 import Container from "../components/container";
 import PlusButton from "../components/button/plus";
 import ProfessorInfo from "../components/courses/professorInfo";
+import CustomCheckbox from "../components/checkbox/customCheckbox";
 import CourseDetailModal from "../components/modal/courseDetailModal";
 import ButtonPrimary from "../components/button/primary";
 import PendingPaymentsModal from "../components/modal/pendingPaymentsModal";
 import StudentCoursesInfo from "../components/section/courses/studentCoursesInfo";
+import useQueryParam from "../hooks/useQueryParam";
+import { STUDENT_STATUS, TABLE_SEARCH_CRITERIA } from "../constants";
+import { Link } from "react-router-dom";
 
 export default function Courses(props) {
     const { courses, students, professors, isLoadingStudents, deleteCourse, addStudent, newCourse, editCourse, changeTaskStatus, changeAlertStatusAndMessage, getStudentsByCourse } = useContext(Context);
@@ -47,6 +51,7 @@ export default function Courses(props) {
     const [tasksLists, setTasksList] = useState([]);
     const [courseName, setCourseName] = useState("");
     const [addTaskModal, setAddTaskModal] = useState(false);
+    const [needsRegistration, setNeedsRegistration] = useState(false);
     const [taskId, setTaskId] = useState(null);
     const [isDateSelected, setIsDateSelected] = useState(false);
     const [newProfessor, setNewProfessor] = useState(false);
@@ -54,17 +59,19 @@ export default function Courses(props) {
     const [courseDetails, setCourseDetails] = useState(null);
     const [periodToEdit, setPeriodToEdit] = useState({});
     const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+    const [defaultIdPayment] = useQueryParam("id", undefined);
+
 
     const setDisplay = (value) => {
         setDisplayModal(value);
         setDeleteModal(value);
-        setEdit(false);
         setDisplayStudentsModal(value);
         setAddTaskModal(value);
         setDisplayTasksModal(value);
         setIsTaskStudentModal(value);
         setIsDateSelected(false);
         setNewProfessor(false);
+        setNeedsRegistration(false);
         setStartAt(dayjs(new Date()));
         setEndAt(dayjs(new Date()));
         setCourseProfessors([]);
@@ -103,6 +110,7 @@ export default function Courses(props) {
         setDisplayModal(true);
         setCourseId(course.id);
         setCourseToEdit(course);
+        setNeedsRegistration(course.needsRegistration);
         setStartAt(dayjs(new Date(course.startAt)));
         setEndAt(dayjs(new Date(course.endAt)));
         if(course.periods?.length > 0) {
@@ -121,17 +129,23 @@ export default function Courses(props) {
         setCourseName(courseName);
     }
     
-    const openStudentsTaskModal = async (students, courseName, id) => {
-        setStudentsLists(await getStudentsByCourse(courseId));
+    const openStudentsTaskModal = async (_, courseName, id) => {
+        let students = await getStudentsByCourse(courseId)
+        students = students.map(st => {
+            st.studentCourseTask = st.courseTasks.filter(c => c.courseId === courseId)[0].studentCourseTask
+            return st;
+        })
+        setStudentsLists(students);
         setCourseName(courseName);
         setDisplayTasksModal(false);
         setIsTaskStudentModal(true);
         setTaskId(id);
     }
 
-    const openTasksModal = (tasks, courseName) => {
+    const openTasksModal = (tasks, courseName, courseId) => {
         setDisplayTasksModal(true);
         setTasksList(tasks);
+        setCourseId(courseId)
         setCourseName(courseName);
     }
 
@@ -182,23 +196,29 @@ export default function Courses(props) {
        return prfName;
     }
 
-    const handleOnClickCourse = async (course) => {
-        setCourseDetails(course);
-    }
-
     const columns = [
         {
+            name: 'Identificador',
+            searchCriteria: TABLE_SEARCH_CRITERIA.EQUAL,
+            hidden: true,
+            selector: row => row.id,
+            sortable: true,
+            searchable: true,
+            cell: () => <></>,
+        },
+        {
             name: 'Título',
-            cell: row => {return (<><div className="flex flex-col justify-center" onClick={() => handleOnClickCourse(row)}>
-            <div className="relative py-3 sm:max-w-xl sm:mx-auto">
-              <div className="group cursor-pointer relative inline-block underline text-yellow-900 mx-1 cursor-pointer">{row.title}
-                <div className="opacity-0 w-28 bg-orange-200 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
-                  {row.title}
-                  <svg className="absolute text-orange-200 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+            cell: row => 
+            <Link to={`/home/courses/${row.id}`} className="flex flex-col justify-center">
+                <div className="relative py-3 sm:max-w-xl sm:mx-auto">
+                    <div className="group cursor-pointer relative inline-block underline text-yellow-900 mx-1 cursor-pointer">{row.title}
+                        <div className="opacity-0 w-28 bg-orange-200 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
+                        {row.title}
+                        <svg className="absolute text-orange-200 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                        </div>
+                    </div>
                 </div>
-              </div>
-            </div>
-            </div></>)},
+            </Link>,
             sortable: true,
             searchable: true,
             selector: row => row.title,
@@ -219,7 +239,12 @@ export default function Courses(props) {
         },
         {
             name: 'Tareas',
-            selector: row => {return (<div className="flex-row"><button className="underline text-yellow-900 mx-1" onClick={() => openTasksModal(row.courseTasks, row.title)}>Ver tareas</button></div>)},
+            selector: row => {return (<div className="flex-row"><button className="underline text-yellow-900 mx-1" onClick={() => openTasksModal(row.courseTasks, row.title, row.id)}>Ver tareas</button></div>)},
+            sortable: true,
+        },
+        {
+            name: 'Posee matrícula',
+            selector: row => row.needsRegistration ? "Sí" : "No" ?? "No",
             sortable: true,
         },
         {
@@ -270,6 +295,17 @@ export default function Courses(props) {
         {
             name: 'Numero de telefono',
             selector: row => row.phoneNumber,
+            sortable: true,
+        },
+        {
+            name: 'Pagó matrícula',
+            selector: row => row.registrationPaymentId ? 'Si' : 'No',
+            sortable: true,
+            minWidth: '150px'
+        },
+        {
+            name: 'Estado',
+            selector: row => row.status === STUDENT_STATUS.ACTIVE ? "Activo" : "Suspendido",
             sortable: true,
         },
     ];
@@ -345,12 +381,7 @@ export default function Courses(props) {
         },
         {
             name: 'Estado de la tarea',
-            selector: row => {if(row.studentCourseTask.completed) {
-                return 'Completada'
-            }else {
-                return 'No completada'
-            }
-            },
+            selector: row => row.studentCourseTask.completed ? 'Completada' : 'No completada'
         },
         {
             name: 'Acciones',
@@ -372,6 +403,11 @@ export default function Courses(props) {
         };
     }, []);
 
+    useEffect(() => {
+      console.log(needsRegistration);
+    }, [needsRegistration])
+    
+
     let style = {};
 
     if (windowWidth >= 768) {
@@ -386,11 +422,14 @@ export default function Courses(props) {
             startAt: edit ? dayjs(new Date(courseToEdit.startAt)) : startAt,
             endAt: edit ? dayjs(new Date(courseToEdit.endAt)) : endAt,
             professors: edit ? courseToEdit.periods : [],
+            needsRegistration: edit ? courseToEdit.needsRegistration : needsRegistration,
         },
             onSubmit: async (values, { resetForm }) => {
+                console.log(needsRegistration);
                 const body = {
                   title: values.title,
                   description: values.description,
+                  needsRegistration: needsRegistration,
                   startAt: startAt,
                   endAt: endAt,
                   professors: courseProfessors,
@@ -416,6 +455,7 @@ export default function Courses(props) {
                         }
                   }
                   setIsDateSelected(false);
+                  setNeedsRegistration(false);
                   setIsLoading(false);
                   resetForm();
                   setDisplayModal(false);
@@ -423,6 +463,7 @@ export default function Courses(props) {
                 changeAlertStatusAndMessage(true, 'error', 'El curso no pudo ser informado... Por favor inténtelo nuevamente.')
                   setIsLoading(false);
                   setCourseProfessors([]);
+                  setNeedsRegistration(false);
                   setNewProfessor(false);
                   resetForm();
                   setDisplayModal(false);
@@ -430,11 +471,7 @@ export default function Courses(props) {
               },
     });
 
-    const handleRadioButtons = e => formik.values.criteria = e.target.value;
-
-    useEffect(() => {
-        console.log('Cantidad seleccionada ' + selectedOption.length + '...');
-    }, [selectedOption])
+    const removeCourseProfessor = professor => setCourseProfessors(courseProfessors.filter(p => p.id !== professor.id));
 
     useEffect(() => {
         if(students.length === 0 && !isLoadingStudents)
@@ -447,6 +484,8 @@ export default function Courses(props) {
                 <Table
                     columns={columns}
                     data={courses}
+                    defaultTypeValue={defaultIdPayment !== undefined ? "Identificador" : undefined}
+                    defaultSearchValue={defaultIdPayment}
                     noDataComponent={opResult}
                     pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
                 />
@@ -473,7 +512,6 @@ export default function Courses(props) {
                                     value={formik.values.startAt}
                                     onChange={(newValue) => {
                                         setStartAt(newValue);
-                                        setIsDateSelected(true);
                                     }}
                                     />
                                 </DemoContainer>
@@ -488,11 +526,19 @@ export default function Courses(props) {
                                     value={formik.values.endAt}
                                     onChange={(newValue) => {
                                         setEndAt(newValue);
-                                        setIsDateSelected(true);
                                     }}
                                     />
                                 </DemoContainer>
                         </div>
+                        <div className="mb-4">
+                                <CustomCheckbox
+                                    checked={needsRegistration}
+                                    labelOn="Posee matrícula"
+                                    labelOff="Posee matrícula"
+                                    className="ml-2"
+                                    onChange={() => {setIsDateSelected(true); setNeedsRegistration(!needsRegistration);}}
+                                />
+                            </div>
                         {isDateSelected && (<><div className="grid grid-cols-2 gap-4">
                             <div className="mb-4">
                                 <CommonInput 
@@ -532,7 +578,7 @@ export default function Courses(props) {
                                 Profesores
                         </label>
                         {courseProfessors.map((prf, index) => 
-                            <div className="my-1 px-3 py-2 bg-orange-50 flex justify-between items-center rounded-sm w-auto" key={index}><div>{getProfessorName(prf.professorId)}</div><div>{edit && <button type="button" className="p-1 rounded-full bg-orange-200 ml-2" onClick={() => {setPeriodToEdit(prf); setNewProfessor(true)}}><EditIcon /></button>}<button type="button" className="p-1 rounded-full bg-gray-100 ml-2" onClick={() => setCourseProfessors(courseProfessors)}><CloseIcon /></button></div></div>
+                            <div className="my-1 px-3 py-2 bg-orange-50 flex justify-between items-center rounded-sm w-auto" key={index}><div>{getProfessorName(prf.professorId)}</div><div>{edit && <button type="button" className="p-1 rounded-full bg-orange-200 ml-2" onClick={() => {setPeriodToEdit(prf); setNewProfessor(true)}}><EditIcon /></button>}<button type="button" className="p-1 rounded-full bg-gray-100 ml-2" onClick={() => removeCourseProfessor(prf)}><CloseIcon /></button></div></div>
                         )}</>)}
                         {!newProfessor && (<div className="mb-4 mt-2 flex items-center justify-start">
                             <label className="block text-gray-700 text-sm font-bold">

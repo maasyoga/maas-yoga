@@ -3,6 +3,7 @@ import utils from "../utils/functions.js";
 import { StatusCodes } from "http-status-codes";
 import { course, student, courseStudent, courseTask, studentCourseTask, payment, professorCourse, professor } from "../db/index.js";
 import { CRITERIA_COURSES, PAYMENT_TYPES } from "../utils/constants.js";
+import { getStudentsByCourse } from './studentService.js'
 
 const paymentBelongToProfessor = (payment, professor) => {
   try {
@@ -76,14 +77,27 @@ const createProfessorCourse = async (courseId, professorsCourseParam) => {
   await professorCourse.bulkCreate(professorsCourseParam);
 };
 
-const getCollectedByStudent = (professorPayment, criteriaValue) => {
-  const amountByStudent = parseFloat(criteriaValue);
-  return amountByStudent * professorPayment.totalStudents;
+const getCollectedByStudent = (profData) => {
+  let total = 0;
+  const criteriaValue = parseFloat(profData.period.criteriaValue);
+  const payments = profData.payments;
+  for (const p of payments) {
+    if (p.discount !== null) {
+      total += criteriaValue * ( (100 - p.discount) / 100)
+    } else {
+      total += criteriaValue
+    }
+  }
+  return total;
 };
 
-const getCollectedByPercentage = (professorPayment, criteriaValue) => {
+const getCollectedByPercentage = (profData, criteriaValue) => {
   const percentage = parseFloat(criteriaValue);
-  const total = professorPayment.collectedByPayments;
+  let total = 0;
+  const payments = profData.payments;
+  for (const p of payments) {
+    total += p.value;
+  }
   return (percentage / 100) * total;
 };
 
@@ -111,9 +125,17 @@ export const editById = async (courseParam, id) => {
 };
 
 export const getById = async (id) => {
-  const c = await course.findByPk(id, { include: [student, courseTask] });
+  const c = await course.findByPk(id, { include: [
+    { model: courseTask, include:[student] },
+    payment] });
   const professorsWithPeriods = await getProfessorPeriodsInCourse(c.id);
-  c.dataValues.professors = professorsWithPeriods;
+  c.dataValues.students = await getStudentsByCourse(c.id)
+  c.dataValues.periods = []
+  for (const professor of professorsWithPeriods) {
+    const professorPeriods = professor.dataValues.periods.map(pp => ({ ...pp, professorId: professor.id }))
+    c.dataValues.periods = [...c.dataValues.periods, ...professorPeriods]
+
+  }
   return c;
 };
 
@@ -190,7 +212,7 @@ export const setCompletedStudentTask = async (studentCourseTaskParam, courseTask
  * @param {String} from in format yyyy-mm-dd
  * @param {String} to in format yyyy-mm-dd
  */
-export const calcProfessorsPayments = async (from, to) => {
+export const calcProfessorsPayments = async (from, to, professorId, courseId) => {
   const startDate = new Date(from);
   const endDate = new Date(to);
   startDate.setHours(0, 0, 0, 0);
@@ -200,8 +222,14 @@ export const calcProfessorsPayments = async (from, to) => {
       operativeResult: {
         [Op.between]: [startDate, endDate]
       },
-      courseId: {
-        [Op.not]: null
+      courseId: 
+        courseId === undefined ? { [Op.not]: null }
+         : { [Op.eq]: courseId },
+      value: {
+        [Op.gt]: 0
+      },
+      isRegistrationPayment: {
+        [Op.eq]: false
       }
     }
   });
@@ -215,7 +243,17 @@ export const calcProfessorsPayments = async (from, to) => {
     }
   });
   for (const c of coursesInRange) {
-    c.professors = await getProfessorPeriodsInCourse(c.id);
+    const professorPeriodsInCourse = await getProfessorPeriodsInCourse(c.id);
+    if (professorId == undefined) {
+      c.professors = professorPeriodsInCourse;
+    } else {
+      const prof = professorPeriodsInCourse.find(p => p.id == professorId)
+      if (prof) {
+        c.professors = [prof];
+      } else {
+        c.professors = []
+      }
+    }
   }
   
   for (const paymentRange of paymentsInRange) {
@@ -246,9 +284,14 @@ export const calcProfessorsPayments = async (from, to) => {
         prof.result.collectedByPayments = prof.result.payments.reduce((total, p) => total + p.value, 0);
         prof.result.totalStudents = prof.result.payments.map(p => p.studentId);
         prof.result.totalStudents = utils.removeDuplicated(prof.result.totalStudents).length;
-        prof.result.collectedByProfessor = isCriteriaByStudent(prof.result.period.criteria)
-          ? getCollectedByStudent(prof.result, prof.result.period.criteriaValue) 
-          : getCollectedByPercentage(prof.result, prof.result.period.criteriaValue);
+        const criteria = prof.result.period.criteria;
+        if (criteria == CRITERIA_COURSES.ASSISTANT) {
+          prof.result.collectedByProfessor = prof.result.period.criteriaValue;
+        } else {
+          prof.result.collectedByProfessor = isCriteriaByStudent(prof.result.period.criteria)
+            ? getCollectedByStudent(prof.result) 
+            : getCollectedByPercentage(prof.result, prof.result.period.criteriaValue);
+        }
         prof.dataValues.result = prof.result;
       }
     }

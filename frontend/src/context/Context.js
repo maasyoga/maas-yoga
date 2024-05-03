@@ -9,11 +9,12 @@ import professorsService from "../services/professorsService";
 import templatesService from "../services/templatesService";
 import categoriesService from "../services/categoriesService";
 import userService from "../services/userService";
-import { CASH_PAYMENT_TYPE, STUDENT_MONTHS_CONDITIONS } from "../constants";
+import { APP_VERSION, CASH_PAYMENT_TYPE, STUDENT_MONTHS_CONDITIONS } from "../constants";
 import logsService from "../services/logsService";
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { GoogleApiProvider } from 'react-gapi'
 import agendaService from "../services/agendaService";
+import { series } from "../utils";
 
 export const Context = createContext();
 
@@ -30,6 +31,8 @@ export const Provider = ({ children }) => {
     const [users, setUsers] = useState([]);
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
     const [payments, setPayments] = useState([]);
+    const [secretaryPayments, setSecretaryPayments] = useState([]);
+    const [alreadyAddedSecretaryPayments, setAlreadyAddedSecretaryPayments] = useState(false);
     const [isLoadingPayments, setIsLoadingPayments] = useState(true);
     const [clazzes, setClazzes] = useState([]);
     const [isLoadingClazzes, setIsLoadingClazzes] = useState(true);
@@ -47,6 +50,7 @@ export const Provider = ({ children }) => {
     const [agendaLocations, setAgendaLocations] = useState([]);
 
     useEffect(() => {
+        console.log("App running version=" + APP_VERSION);
         if (user === null) return;
         const getStudents = async () => {
             const studentsList = await studentsService.getStudents();
@@ -59,10 +63,6 @@ export const Provider = ({ children }) => {
         }
         const getCourses = async () => {
             const coursesList = await coursesService.getCourses();
-            coursesList.forEach(course => {
-                course.label = course.title;
-                course.value = course.id;
-            });
             setCourses(coursesList);
             setIsLoadingCourses(false);
         }
@@ -124,7 +124,7 @@ export const Provider = ({ children }) => {
         const getProffesors = async () => {
             const pfrs = await professorsService.getProffesors();
             pfrs.forEach(professor => {
-                professor.label = professor.name;
+                professor.label = professor.name + " " + professor.lastName;
                 professor.value = professor.id;
             })
             setProfessors(pfrs);
@@ -151,6 +151,24 @@ export const Provider = ({ children }) => {
         getProffesors();
         getAgendaLocations();
     }, [user]);
+
+    const addSecretaryPaymentsToPayments = async () => {
+        const secretaryPayments = await paymentsService.getSecretaryPayments();
+        setSecretaryPayments(secretaryPayments);
+        setPayments(prev => prev.map(payment => {
+            if ("secretaryPaymentId" in payment && payment.secretaryPaymentId != null) {
+                payment.secretaryPayment = secretaryPayments.find(sp => sp.id == payment.secretaryPaymentId)
+            }
+            return payment;
+        }))
+    }
+
+    useEffect(() => {
+        if (isLoadingPayments || alreadyAddedSecretaryPayments) return
+        addSecretaryPaymentsToPayments()
+        setAlreadyAddedSecretaryPayments(true)
+    }, [payments, isLoadingPayments, alreadyAddedSecretaryPayments])
+    
 
     const getAgendaCashValues = async (year, month, location) => {
         return agendaService.getCash(year, month, location);
@@ -180,12 +198,13 @@ export const Provider = ({ children }) => {
     const getHeadquarterById = headquarterId => colleges.find(headquarter => headquarter.id == headquarterId);
     const getItemById = itemId => categories.find(category => category.items.find(item => item.id == itemId)).items.find(item => item.id == itemId);
     const getUserById = userId => users.find(user => user.id == userId);
+    const getSecretaryPaymentById = spId => secretaryPayments.find(sp => sp.id == spId);
     const getProfessorById = professorId => professors.find(professor => professor.id == professorId);
 
-    const getProfessorDetailsById = async professorId => {
+    const getProfessorDetailsById = async (professorId, force = false) => {
         const localProfessor = getProfessorById(professorId);
         if (localProfessor) {
-            if ("courses" in localProfessor) {
+            if (force === false && ("courses" in localProfessor)) {
                 return localProfessor;
             }
             const professor = await professorsService.getProfessor(professorId);
@@ -201,6 +220,28 @@ export const Provider = ({ children }) => {
             const professor = await professorsService.getProfessor(professorId);
             setProfessors(prev => [...professors, professor]);
             return professor;
+        }
+    }
+
+    const getCourseDetailsById = async (courseId, force = false) => {
+        const localCourse = getCourseById(courseId);
+        if (localCourse) {
+            if (force === false) {
+                return localCourse;
+            }
+            const course = await coursesService.getCourse(courseId);
+            setCourses(prev => prev.map(c => {
+                if (c.id === courseId) {
+                    return course;
+                } else {
+                    return c;
+                }
+            }))
+            return course;
+        } else {
+            const course = await coursesService.getCourse(courseId);
+            setProfessors([...courses, course]);
+            return course;
         }
     }
 
@@ -237,19 +278,19 @@ export const Provider = ({ children }) => {
             periodFrom,
             periodTo,
             at: new Date(),
-            operativeResult: new Date(),
+            operativeResult: new Date(periodFrom.slice(0, -2) + "15"),
             type: CASH_PAYMENT_TYPE,
             value: value*-1,
             verified: false,
         }
-        const createdPayment = await informPayment(payment);
-        //const professor = await professorsService.getProfessor(professorId);
-        setProfessors(prev => prev.map(p => {
+        await informPayment(payment);
+        const professor = await professorsService.getProfessor(professorId);
+        setProfessors(JSON.parse(JSON.stringify(professors.map(p => {
             if (p.id === professorId) {
-                p.payments.push(createdPayment);
+                return professor
             }
             return p;
-        }));
+        }))));
     }
 
     const informPayment = async payment => {
@@ -315,6 +356,18 @@ export const Provider = ({ children }) => {
     const deletePayment = async (id) => {
         await paymentsService.deletePayment(id);
         setPayments(current => current.filter(p => p.id !== id));
+        changeAlertStatusAndMessage(true, 'success', 'El pago fue eliminado');
+    }
+
+    const deleteUser = async (email) => {
+        await userService.deleteUser(email);
+        setUsers(current => current.filter(p => p.email !== email));
+    }
+
+    const editUser = async (email, user) => {
+        const editedUser = await userService.updateUser(email, user);
+        changeAlertStatusAndMessage(true, 'success', 'El usuario fue editado exitosamente!')
+        setUsers(current => current.map(s => s.email === email ? merge(s, editedUser) : s));
     }
 
     const deleteCollege = async collegeId => {
@@ -343,7 +396,7 @@ export const Provider = ({ children }) => {
 
     const newProfessor = async (professor) => {
         const createdProfessor = await professorsService.newProfessor(professor);
-        createdProfessor.label = professor.name;
+        createdProfessor.label = professor.name + " " + professor.lastName;
         createdProfessor.value = professor.id;
         changeAlertStatusAndMessage(true, 'success', 'El profesor fue agregado exitosamente!')
         setProfessors(current => [...current, createdProfessor]);
@@ -519,7 +572,9 @@ export const Provider = ({ children }) => {
     }
 
     const changeTaskStatus = async (courseId, taskId, studentId, taskStatus) => {
+        setIsLoadingCourses(false)
         await coursesService.changeTaskStatus(taskId, studentId, taskStatus);
+        setIsLoadingCourses(true)
         changeAlertStatusAndMessage(true, 'success', 'El estado de la tarea fue editado exitosamente!')
         setCourses(current => current.map(course => {
             if (course.id === courseId) {
@@ -558,23 +613,6 @@ export const Provider = ({ children }) => {
     };
 
     const getPendingPaymentsByCourseFromStudent = student => {
-        const series = (from, to) => {
-            from = new Date(from);
-            to = new Date(to);
-            function getFirstDayDateOfMonth(date) {
-                return new Date(date.getFullYear(), date.getMonth(), 1);
-            }
-            let serieDates = [];
-            serieDates.push(getFirstDayDateOfMonth(from));
-            while (from < to) {
-                from.setMonth(from.getMonth() + 1);
-                serieDates.push(getFirstDayDateOfMonth(from));
-            }
-            serieDates.pop();
-            return serieDates;
-        }
-        
-        
         const courses = [];
         const currentYear = new Date().getFullYear();
         const currentMonth = new Date().getMonth()+1;
@@ -712,8 +750,8 @@ export const Provider = ({ children }) => {
         setPayments(current => current.map(payment => payment.clazzId === clazz.id ? ({ ...payment, verified: true }) : payment));
     }
 
-    const calcProfessorsPayments = async (from, to) => {
-        let data = await coursesService.calcProfessorsPayments(from, to);
+    const calcProfessorsPayments = async (from, to, professorId, courseId) => {
+        let data = await coursesService.calcProfessorsPayments(from, to, professorId, courseId);
         data.forEach(d => {
             d.professors = d.professors.filter(professor => "result" in professor);
             d.professorsNames = d.professors.map(p => p.name);
@@ -739,6 +777,40 @@ export const Provider = ({ children }) => {
         await paymentsService.updatePayment(data, paymentId);
     }
 
+    const suspendStudentFromCourse = async (studentId, courseId, from, to) => {
+        setIsLoadingCourses(true)
+        await studentsService.suspendStudentFromCourse(studentId, courseId, from, to)
+        setIsLoadingCourses(false)
+    }
+
+    const finishSuspend = async (studentId, courseId, from) => {
+        setIsLoadingCourses(true)
+        const now = new Date()
+        const year = now.getFullYear()
+        let month = now.getMonth()+1
+        month = month < 10 ? "0" + month : month
+        const to = `${year}-${month}`
+        await studentsService.suspendStudentFromCourse(studentId, courseId, from, to)
+        setIsLoadingCourses(false)
+    }
+
+    const deleteSuspension = async (studentId, courseId, from, to) => {
+        setIsLoadingCourses(true)
+        await studentsService.deleteSuspension(studentId, courseId, from, to)
+        setIsLoadingCourses(false)
+    }
+
+    const getSecretaryPaymentDetail = () => {
+        return secretaryPayments.reduce((max, current) => {
+            if (current.createdAt > max.createdAt) {
+              return current;
+            } else {
+              return max;
+            }
+        }, secretaryPayments[0]);
+    }
+
+
     return (
         <Context.Provider value={{
             agendaLocations,
@@ -751,10 +823,15 @@ export const Provider = ({ children }) => {
             templates,
             clazzes,
             categories,
+            suspendStudentFromCourse,
+            deleteSuspension,
+            getSecretaryPaymentDetail,
+            finishSuspend,
             items,
             isLoadingColleges,
             isLoadingCourses,
             isLoadingPayments,
+            isLoadingProfessors,
             isLoadingStudents,
             isLoadingTasks,
             isLoadingTemplates,
@@ -772,6 +849,8 @@ export const Provider = ({ children }) => {
             newCollege,
             newClazz,
             newUser,
+            deleteUser,
+            getSecretaryPaymentById,
             deleteStudent,
             editStudent,
             newStudent,
@@ -787,8 +866,10 @@ export const Provider = ({ children }) => {
             associateTask,
             changeTaskStatus,
             newTemplate,
+            editUser,
             getTemplate,
             editTemplate,
+            getCourseDetailsById,
             editClazz,
             deleteClazz,
             deleteCategory,
@@ -798,6 +879,7 @@ export const Provider = ({ children }) => {
             getStudentsByCourse,
             getProfessorDetailsById,
             getStudentDetailsById,
+            getUserById,
             getPendingPaymentsByCourseFromStudent,
             newProfessorPayment,
             editPayment,

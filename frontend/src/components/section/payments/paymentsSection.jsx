@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import paymentsService from "../../../services/paymentsService";
 import Select from 'react-select';
 import CommonInput from "../../../components/commonInput";
@@ -22,15 +22,20 @@ import CloseIcon from '@mui/icons-material/Close';
 import StorageIconButton from "../../button/storageIconButton";
 import { useRef } from "react";
 import useDrivePicker from 'react-google-drive-picker'
+import useToggle from "../../../hooks/useToggle";
+import { betweenZeroAnd100 } from "../../../utils";
+import CustomCheckbox from "../../../components/checkbox/customCheckbox";
 
-export default function PaymentsSection(props) {
+export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }) {
 
     const [file, setFile] = useState([]);
     const [haveFile, setHaveFile] = useState(false);
     const [fileName, setFilename] = useState("");
-    const { user, clazzes, students, courses, payments, colleges, templates, isLoadingPayments, informPayment, getTemplate, newTemplate, editTemplate, changeAlertStatusAndMessage, editPayment, getHeadquarterById, getItemById } = useContext(Context);
+    const { user, clazzes, students, courses, payments, colleges, templates, isLoadingPayments, informPayment, getTemplate, newTemplate, editTemplate, changeAlertStatusAndMessage, editPayment, getHeadquarterById, getItemById, getSecretaryPaymentDetail } = useContext(Context);
     const [selectedStudent, setSelectedStudent] = useState(null);
+    const [secretaryPaymentValues, setSecretaryPaymentValues] = useState(null)
     const [selectedCourse, setSelectedCourse] = useState(null);
+    const [isSecretaryPayment, setIsSecretaryPayment] = useState(false)
     const [selectedCollege, setSelectedCollege] = useState(null);
     const inputFileRef = useRef(null);
     const [fileId, setFileId] = useState(null);
@@ -45,11 +50,14 @@ export default function PaymentsSection(props) {
     const [operativeResult, setOperativeResult] = useState(dayjs(new Date()));
     const [templateModal, setTemplateModal] = useState(false);
     const [templateTitle, setTemplateTitle] = useState('');
+    const discountCheckbox = useToggle()
+    const [discount, setDiscount] = useState("")
     const [isEditingTemplate, setIsEditingTemplate] = useState(false);
     const [templateId, setTemplateId] = useState(null);
     const [selectedItem, setSelectedItem] = useState(null);
     const [selectedClazz, setSelectedClazz] = useState(null);
     const [edit, setEdit] = useState(false);
+    const [registration, setRegistration] = useState(false);
     const [paymentToEdit, setPaymentToEdit] = useState({});
     const [openPicker, data, authResponse] = useDrivePicker();
     const [driveFile, setDriveFile] = useState(null);
@@ -122,6 +130,8 @@ export default function PaymentsSection(props) {
         setEdit(value);
         setPaymentAt(dayjs(new Date()));
         setOperativeResult(dayjs(new Date()));
+        setDiscount("");
+        discountCheckbox.disable();
         setAmmount(null);
         setSelectedStudent(null);
         setPaymentMethod(null);
@@ -139,14 +149,6 @@ export default function PaymentsSection(props) {
         setDriveFile(null);
         setFilename("");
     }
-
-    const handleChangeStudent = (selectedOpt) => {
-        setSelectedStudent(selectedOpt.id);
-    };
-
-    const handleChangeCourse = (selectedOpt) => {
-        setSelectedCourse(selectedOpt.id);
-    };
 
     const handleChangeAmmount = (e) => {
         if(!isDischarge) {
@@ -210,8 +212,11 @@ export default function PaymentsSection(props) {
         setEdit(true);
         setOpenModal(true);
         setNote(payment.note);
+        if(payment.isRegistrationPayment){
+            setRegistration(payment.isRegistrationPayment);
+        }
         if(payment.course) {
-            setSelectedCourse({label: payment.course.title, value: payment.course.id});
+            setSelectedCourse(payment.course);
         }
         if(payment.clazzId) {
             const classes = clazzes.filter(cls => cls.id === payment.clazzId);
@@ -230,7 +235,7 @@ export default function PaymentsSection(props) {
             setAmmount(payment.value * -1)
         } else {
             setAmmount(payment.value)
-            setSelectedStudent({label: payment.student.name, value: payment.student.id});
+            setSelectedStudent(payment.student);
         }
         const method = PAYMENT_OPTIONS.filter(type => type.value === payment.type);
         setPaymentMethod(method[0]);
@@ -253,15 +258,18 @@ export default function PaymentsSection(props) {
             itemId: selectedItem?.id,
             clazzId: (edit && selectedClazz !== null) ? selectedClazz.value : selectedClazz?.id,
             headquarterId: (edit && selectedCollege !== null) ? selectedCollege.value :  selectedCollege?.value,
-            courseId: (edit && selectedCourse !== null) ? selectedCourse.value : (isDischarge ? null : selectedCourse),
+            courseId: (edit && selectedCourse !== null) ? selectedCourse.value : (isDischarge ? null : selectedCourse.value),
             type: (edit && paymentMethod !== null) ? paymentMethod.value : paymentMethod,
             fileId: edit ? paymentToEdit.fileId : fileId,
             value: edit ? getValue() : (isDischarge ? (ammount * -1).toFixed(3) : ammount),
-            studentId: (edit && selectedStudent !== null) ? selectedStudent.value : (isDischarge ? null : selectedStudent),
+            studentId: (edit && selectedStudent !== null) ? selectedStudent.value : (isDischarge ? null : selectedStudent.value),
             note: note,
             at: edit ? paymentAt : paymentAt.$d.getTime(),
             operativeResult: edit ? operativeResult : operativeResult.$d.getTime(),
             driveFileId: driveFile?.id,
+            discount: discountCheckbox.value ? discount : null,
+            isRegistrationPayment: registration,
+            secretaryPayment: (isDischarge && isSecretaryPayment) ? secretaryPaymentValues : null,
         }  
         try{
             if(edit) {
@@ -295,6 +303,8 @@ export default function PaymentsSection(props) {
         setSelectedCourse(null);
         setSelectedStudent(null);
         setSelectedClazz(null);
+        setDiscount("");
+        discountCheckbox.disable();
         setHaveFile(false);
         setNote('');
         setEdit(false);
@@ -304,21 +314,182 @@ export default function PaymentsSection(props) {
         setIsDischarge(false);
     }
 
+    const handleChangeDiscount = newValue => {
+        if (newValue != "") {
+            newValue = parseFloat(newValue);
+            newValue = betweenZeroAnd100(newValue);
+        }
+        setDiscount(newValue)
+    }
+
+    const getOnlyStudentsOfSameCourse = () => {
+        if (selectedCourse == null) {
+            return students;
+        }
+        return students.filter(st => {
+            console.log(selectedCourse, "AK");
+            return st.courses.some(course => course.id == selectedCourse.id)
+        })
+    }
+
+    useEffect(() => {
+        const currentSecretaryPaymentValues = getSecretaryPaymentDetail();
+        if (currentSecretaryPaymentValues)
+            setSecretaryPaymentValues(currentSecretaryPaymentValues)
+        else
+            setSecretaryPaymentValues({ salary: 0, monotributo: 0, extraTasks: 0, extraHours: 0, sac: 0 })
+    }, [payments])
+
+    const handleChangeSecretaryPaymentValue = (type, value) => {
+        setSecretaryPaymentValues(prev => ({ ...prev, [type]: value }))
+    }
+
+    useEffect(() => {
+        if (isSecretaryPayment) {
+            const salary = parseFloat(secretaryPaymentValues.salary)
+            const monotributo = parseFloat(secretaryPaymentValues.monotributo)
+            const sac = parseFloat(secretaryPaymentValues.sac)
+            const extraHours = parseFloat(secretaryPaymentValues.extraHours)
+            const extraTasks = parseFloat(secretaryPaymentValues.extraTasks)
+            setAmmount(salary + monotributo + sac + extraHours + extraTasks)
+        }
+    }, [secretaryPaymentValues, isSecretaryPayment])
+
+
     return (
         <>
         <div className="mb-6 md:my-6 md:mx-4">
-            <PaymentsTable editMode={true} editPayment={(payment) => openEditPayment(payment)} payments={payments.filter(p => p.verified)} isLoading={isLoadingPayments}/>
+            <PaymentsTable
+                editMode={true}
+                editPayment={(payment) => openEditPayment(payment)}
+                payments={payments.filter(p => p.verified)}
+                isLoading={isLoadingPayments}
+                defaultSearchValue={defaultSearchValue}
+                defaultTypeValue={defaultTypeValue}
+            />
         </div>
         <Modal icon={<PaidIcon />} open={openModal} setDisplay={setDisplay} buttonText={isLoadingPayment ? (<><i className="fa fa-circle-o-notch fa-spin mr-2"></i><span>{edit ? 'Editando...' : 'Informando...'}</span></>) : <span>{edit ? 'Editar' : 'Informar'}</span>} onClick={handleInformPayment} title={isDischarge ? 'Informar egreso' : 'Informar ingreso'} children={<>
         <div className="grid grid-cols-2 gap-10 pt-6 mb-4">
         {!isDischarge && (<><div className="col-span-2 md:col-span-1">
                 <span className="block text-gray-700 text-sm font-bold mb-2">Seleccione la persona que realizó el pago</span>
-                <div className="mt-4"><Select onChange={handleChangeStudent} options={students} defaultValue={(edit && !isDischarge) ? selectedStudent : {}} /></div>
+                <div className="mt-4">
+                    <Select
+                        onChange={setSelectedStudent}
+                        options={getOnlyStudentsOfSameCourse()}
+                        value={selectedStudent}
+                        getOptionLabel ={(student)=> `${student?.name} ${student?.lastName}`}
+                        getOptionValue ={(student)=> student.id}
+                    /></div>
             </div>
             {(!selectedClazz && !selectedItem) && (<div className="col-span-2 md:col-span-1">
                 <span className="block text-gray-700 text-sm font-bold mb-2">Seleccione el curso que fue abonado</span>
-                <div className="mt-4"><Select onChange={handleChangeCourse} options={courses} defaultValue={(edit && !isDischarge) ? selectedCourse : {}} /></div>
-            </div>)}</>)}
+                <div className="mt-4">
+                    <Select
+                        onChange={setSelectedCourse}
+                        options={courses}
+                        defaultValue={selectedCourse}
+                        getOptionLabel ={(course)=> course.title}
+                        getOptionValue ={(course)=> course.id}
+                    /></div>
+            </div>)}
+            <div className="col-span-2 pb-1">
+                <CustomCheckbox
+                    checked={registration}
+                    labelOn="Corresponde a un pago de matrícula"
+                    labelOff="Corresponde a un pago de matrícula"
+                    className=""
+                    onChange={() => setRegistration(!registration)}
+                />
+            </div>
+        </>)}
+            {(selectedCourse !== null && selectedStudent !== null) && 
+                <div className="col-span-2 md:col-span-2">
+                    <div className="flex items-center mb-2">
+                        <input onChange={discountCheckbox.toggle} name="discount" id="discount" type="checkbox" checked={discountCheckbox.value} value="discount" className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600" />
+                        <label htmlFor="discount" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-900">Aplicar descuento</label>
+                    </div>
+                    <div>
+                        <CommonInput 
+                            disabled={!discountCheckbox.value}
+                            label="Descuento"
+                            name="title"
+                            className="block font-bold text-sm text-gray-700 mb-2"
+                            type="number" 
+                            placeholder="0%" 
+                            value={discount}
+                            onChange={(e) => handleChangeDiscount(e.target.value)}
+                        />
+                    </div>
+                </div>
+            }
+            {isDischarge &&
+                <div className="col-span-2 pb-1">
+                    <CustomCheckbox
+                        checked={isSecretaryPayment}
+                        labelOn="Corresponde a un pago de secretaria"
+                        labelOff="Corresponde a un pago de secretaria"
+                        className=""
+                        onChange={() => setIsSecretaryPayment(!isSecretaryPayment)}
+                    />
+                </div>
+            }
+            {isSecretaryPayment && <>
+            <div className="col-span-2 md:col-span-1 pb-1">
+                <CommonInput 
+                    label="Sueldo"
+                    name="Sueldo"
+                    className="block font-bold text-sm text-gray-700 mb-2"
+                    type="number" 
+                    placeholder="Sueldo" 
+                    value={secretaryPaymentValues.salary}
+                    onChange={(e) => handleChangeSecretaryPaymentValue("salary", e.target.value)}
+                />
+            </div>
+            <div className="col-span-2 md:col-span-1 pb-1">
+                <CommonInput 
+                    label="Monotributo"
+                    name="Monotributo"
+                    className="block font-bold text-sm text-gray-700 mb-2"
+                    type="number" 
+                    placeholder="Monotributo" 
+                    value={secretaryPaymentValues.monotributo}
+                    onChange={(e) => handleChangeSecretaryPaymentValue("monotributo", e.target.value)}
+                />
+            </div>
+            <div className="col-span-2 md:col-span-1 pb-1">
+                <CommonInput 
+                    label="Tareas extra"
+                    name="Tareas extra"
+                    className="block font-bold text-sm text-gray-700 mb-2"
+                    type="number" 
+                    placeholder="Tareas extra" 
+                    value={secretaryPaymentValues.extraTasks}
+                    onChange={(e) => handleChangeSecretaryPaymentValue("extraTasks", e.target.value)}
+                />
+            </div>
+            <div className="col-span-2 md:col-span-1 pb-1">
+                <CommonInput 
+                    label="Horas extra"
+                    name="Horas extra"
+                    className="block font-bold text-sm text-gray-700 mb-2"
+                    type="number" 
+                    placeholder="Horas extra" 
+                    value={secretaryPaymentValues.extraHours}
+                    onChange={(e) => handleChangeSecretaryPaymentValue("extraHours", e.target.value)}
+                />
+            </div>
+            <div className="col-span-2 pb-1">
+                <CommonInput 
+                    label="S.A.C."
+                    name="S.A.C."
+                    className="block font-bold text-sm text-gray-700 mb-2"
+                    type="number" 
+                    placeholder="S.A.C." 
+                    value={secretaryPaymentValues.sac}
+                    onChange={(e) => handleChangeSecretaryPaymentValue("sac", e.target.value)}
+                />
+            </div>
+            </>}
             <div className="col-span-2 md:col-span-1 pb-1">
                 <CommonInput 
                     label="Importe"

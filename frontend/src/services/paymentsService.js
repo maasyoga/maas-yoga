@@ -35,27 +35,9 @@ export default {
     },
     informPayment(paymentInfo) {
         return new Promise((resolve, reject) => {
-            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
-            const data = {
-                "headquarterId": paymentInfo.headquarterId,
-                "clazzId": paymentInfo.clazzId,
-                "courseId": paymentInfo.courseId,
-                "studentId": paymentInfo.studentId,
-                "itemId": paymentInfo.itemId,
-                "type": paymentInfo.type,
-                "fileId": paymentInfo.fileId,
-                "value": paymentInfo.value,
-                "at": paymentInfo.at,
-                "operativeResult": paymentInfo.operativeResult,
-                "note": paymentInfo.note,
-                "periodFrom": paymentInfo.periodFrom,
-                "periodTo": paymentInfo.periodTo,
-                "professorId": paymentInfo.professorId,
-                "verified": paymentInfo.verified,
-                "driveFileId": paymentInfo.driveFileId,
-            }    
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;  
             axios
-                .post(baseUrl + `api/v1/payments`, data, {})
+                .post(baseUrl + `api/v1/payments`, paymentInfo, {})
                 .then((response) => {
                     resolve(response.data);
                 })
@@ -166,6 +148,20 @@ export default {
                 .get(baseUrl + 'api/v1/payments', {})
                 .then((response) => {
                     resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.data)
+                })
+        });
+    },
+    getSecretaryPayments() {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            axios
+                .get(baseUrl + 'api/v1/payments/secretary', {})
+                .then((response) => {
+                    const secretaryPayments = response.data.map(sp => ({ ...sp, createdAt: new Date(sp.createdAt) }))
+                    resolve(secretaryPayments);
                 })
                 .catch((error) => {
                     reject(error.data)
