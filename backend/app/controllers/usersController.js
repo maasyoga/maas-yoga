@@ -35,6 +35,20 @@ export default {
   },
 
   /**
+   * /users/change-password [PUT]
+   * @returns JWT token
+   */
+  changeMyPassword: async (req, res, next) => {
+    try {
+      const { newPassword } = req.body;
+      await userService.changePasswordByUserId(req.user.id, newPassword);
+      res.status(StatusCodes.NO_CONTENT).send();
+    } catch (e) {
+      next(e);
+    }
+  },
+
+  /**
    * /users/login [POST]
    * @returns JWT token
    */
@@ -56,6 +70,19 @@ export default {
     try {
       const users = await userService.getAll();
       res.status(StatusCodes.OK).json(users);
+    } catch (e) {
+      next(e);
+    }
+  },
+
+  /**
+   * /users/{email} [PUT]
+   * @returns HttpStatus ok and array of @Template
+   */
+  editByEmail: async (req, res, next) => {
+    try {
+      const editedUser = await userService.editByEmail(req.params.email, req.body);
+      res.status(StatusCodes.OK).json(editedUser);
     } catch (e) {
       next(e);
     }

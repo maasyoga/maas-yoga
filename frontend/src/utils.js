@@ -52,7 +52,12 @@ export function sleep(ms) {
 export function formatDateDDMMYY(date) {
     try {
         if (typeof date == "string")
-            date = new Date(date);
+            if (date.length == 10) {
+                const [year, month, day] = date.split("-")
+                date = new Date(year, parseInt(month) -1, day);
+            } else {
+                date = new Date(date);
+            }
         let day = date.getDate();
         let month = date.getMonth() +1;
         if (day < 10)
@@ -62,16 +67,6 @@ export function formatDateDDMMYY(date) {
         return `${day}/${month}/${date.getFullYear()}`;
     } catch (e) {
         return "Fecha invalida";
-    }
-}
-
-export function withSeparators(number) {
-    try {
-        if (typeof number === 'string')
-        number = parseFloat(number);
-        return number.toLocaleString('es-ES');
-    } catch {
-        return number;
     }
 }
 
@@ -95,15 +90,19 @@ export function dateToString(str) {
 }
 
 export function formatPaymentValue(value) {
-    let paymentValue = value.toString();
-    paymentValue = paymentValue.replace("-", "");
-    let formatter = new Intl.NumberFormat('es-CL', {
-        style: 'currency',
-        currency: 'CLP',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2
-    })
-    return formatter.format(paymentValue)    
+    try {
+        let paymentValue = value.toString();
+        paymentValue = paymentValue.replace("-", "");
+        let formatter = new Intl.NumberFormat('es-CL', {
+            style: 'currency',
+            currency: 'CLP',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })
+        return formatter.format(paymentValue)    
+    } catch (e) {
+        return value;
+    }
 }
 
 export function isByStudent(criteria) {
@@ -116,6 +115,10 @@ export function isByPercentage(criteria) {
 
 export function isByAssistance(criteria) {
     return criteria.split("-")[1] === "assistance"
+}
+
+export function isByAssistant(criteria) {
+    return criteria === "assistant"
 }
 
 export function twoDigits(minutes) {
@@ -241,6 +244,17 @@ function isLastDayOfMonth(date) {
 export function getMonthName(date) {
     const options = { month: 'long' };
     return date.toLocaleDateString('es-ES', options);
+}
+
+
+export function betweenZeroAnd100(number) {
+    if (number < 0) {
+        return 0;
+    } else if (number > 100) {
+        return 100;
+    } else {
+        return number;
+    }
 }
 
 export function getMonthNameByMonthNumber(monthNumber) {

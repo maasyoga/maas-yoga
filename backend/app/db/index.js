@@ -54,7 +54,7 @@ modelDefiners.forEach((model) => model(sequelize));
 
 //Relaciones
 
-const { courseStudent, user, logPayment, course, student, payment, file, task, headquarter, courseTask, studentCourseTask, template, clazz, item, category, clazzDayDetail, professor, professorCourse } = sequelize.models;
+const { secretaryPayment, courseStudentSuspend, courseStudent, user, logPayment, course, student, payment, file, task, headquarter, courseTask, studentCourseTask, template, clazz, item, category, clazzDayDetail, professor, professorCourse } = sequelize.models;
 
 payment.hasMany(logPayment);
 user.hasMany(logPayment);
@@ -69,6 +69,12 @@ course.hasMany(courseStudent);
 courseStudent.belongsTo(course);
 student.hasMany(courseStudent);
 courseStudent.belongsTo(student);
+courseStudentSuspend.belongsTo(course)
+student.hasMany(courseStudentSuspend);
+courseStudentSuspend.belongsTo(student)
+secretaryPayment.hasMany(payment, { foreignKey: 'secretaryPaymentId' });
+payment.belongsTo(secretaryPayment, { foreignKey: 'secretaryPaymentId' });
+course.hasMany(courseStudentSuspend);
 file.hasOne(payment, { foreignKey: { allowNull: true }, targetKey: "id" });
 item.hasOne(payment,  { foreignKey: { allowNull: true }, targetKey: "id" });
 student.hasMany(payment, { foreignKey: { allowNull: true }, targetKey: "id" });
@@ -112,6 +118,7 @@ export {
   headquarter,
   courseTask,
   studentCourseTask,
+  courseStudentSuspend,
   template,
   clazz,
   category,
@@ -119,4 +126,5 @@ export {
   clazzDayDetail,
   logPayment,
   courseStudent,
+  secretaryPayment,
 };

@@ -1,7 +1,7 @@
 import { StatusCodes } from "http-status-codes";
-import { payment, course, student, user, file, professor } from "../db/index.js";
-import { PAYMENT_TYPES } from "../utils/constants.js";
+import { payment, course, student, user, file, professor, secretaryPayment } from "../db/index.js";
 import * as logService from "./logService.js";
+import utils from "../utils/functions.js";
 
 /**
  * 
@@ -11,8 +11,29 @@ import * as logService from "./logService.js";
  */
 export const create = async (paymentParam, informerId) => {
   const isArray = Array.isArray(paymentParam);
+  if (!isArray && paymentParam.isRegistrationPayment) {
+    const { courseId, studentId } = paymentParam;
+    if (!utils.isNumber(courseId))
+      throw ({ statusCode: StatusCodes.BAD_REQUEST, message: "invalid courseId" });
+    if (!utils.isNumber(studentId))
+      throw ({ statusCode: StatusCodes.BAD_REQUEST, message: "invalid studentId" });
+    const registrationPayment = await payment.findOne({ where: { isRegistrationPayment: true, studentId, courseId } })
+    const alreadyRegistered = registrationPayment != null;
+    if (alreadyRegistered) {
+      throw ({ statusCode: StatusCodes.BAD_REQUEST, message: "registration already added, paymentId=" + registrationPayment.id });
+    }
+  }
   paymentParam = isArray ? paymentParam : [paymentParam];
-  paymentParam.forEach(p => {
+  for (const p of paymentParam) {
+    if (p.secretaryPayment != null) {
+      const { salary, sac, extraHours, extraTasks, monotributo, ...rest } = p.secretaryPayment
+      let currentSecretaryPayment = await secretaryPayment.findOne({ where: { salary, sac, extraHours, extraTasks, monotributo } })
+      delete p.secretaryPayment
+      if (currentSecretaryPayment == undefined || currentSecretaryPayment == null) {
+        currentSecretaryPayment = await secretaryPayment.create({ salary, sac, extraHours, extraTasks, monotributo })
+      }
+      p.secretaryPaymentId = currentSecretaryPayment.id
+    }
     if ("id" in p) {
       p.oldId = p.id;
       delete p.id;
@@ -20,19 +41,31 @@ export const create = async (paymentParam, informerId) => {
     if (!("verified" in p))
       p.verified = true;
     p.userId = informerId;
-  });
+  };
   const createdPayments = await payment.bulkCreate(paymentParam);
   logService.logCreatedPayments(createdPayments);
   return (createdPayments.length === 1) ? createdPayments[0] : createdPayments;
 };
 
+export const createSecretaryPayment = (secretaryPaymentParam) => {
+  return secretaryPayment.create(secretaryPaymentParam);
+}
+
+export const getSecretaryPayments = async () => {
+  return secretaryPayment.findAll();
+}
+
 export const deleteById = async (id, userId) => {
   const p = await payment.findByPk(id);
-  if (p.fileId) {
-    file.destroy({ where: { id: p.fileId } });
+  if (p) {
+    if (p.fileId) {
+      file.destroy({ where: { id: p.fileId } });
+    }
+    logService.deletePayment(userId);
+    return p.destroy();
+  } else {
+    throw ({ statusCode: 404, message: "Payment not found"})
   }
-  logService.deletePayment(userId);
-  return p.destroy();
 };
 
 export const getAllByStudentId = async (studentId) => {

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useContext, useMemo } from "react";
 import Table from "../table";
 import DeleteIcon from '@mui/icons-material/Delete';
 import { Context } from "../../context/Context";
-import { dateToString, withSeparators } from "../../utils";
+import { dateToString, formatPaymentValue } from "../../utils";
 import DoneIcon from '@mui/icons-material/Done';
 import { TABLE_SEARCH_CRITERIA } from "../../constants";
 import EditIcon from '@mui/icons-material/Edit';
@@ -21,8 +21,9 @@ export default function PaymentsTable({ columnsProps = [],dateField = "at", clas
     const [showDischarges, setShowDischarges] = useState(false);
     const [showIncomes, setShowIncomes] = useState(false);
     const [filteredPayments, setFilteredPayments] = useState([]);
+    const [tableSummary, setTableSummary] = useState({ total: 0, incomes: 0, expenses: 0 })
 
-    const getBalanceForAllPayments = () => {
+    const getBalanceForAllPayments = (payments) => {
         return payments.reduce((total, payment) => total + payment.value, 0);
     }
 
@@ -60,7 +61,7 @@ export default function PaymentsTable({ columnsProps = [],dateField = "at", clas
         }
     }
 
-    const getPayments = () => {
+    const getPayments = (payments) => {
         let value = 0;
         payments.forEach(payment => {
             if(payment.value >= 0) {
@@ -70,7 +71,7 @@ export default function PaymentsTable({ columnsProps = [],dateField = "at", clas
         return value;
     }
 
-    const getDischarges = () => {
+    const getDischarges = (payments) => {
         let value = 0;
         payments.forEach(payment => {
             if(payment.value < 0) {
@@ -191,7 +192,7 @@ export default function PaymentsTable({ columnsProps = [],dateField = "at", clas
             },
             {
                 name: 'Importe',
-                cell: row => <span className={`${row.value >= 0 ? "text-gray-800" : "text-red-800"} whitespace-nowrap w-16 font-bold`}>{'$' + withSeparators(row.value)}</span>,
+                cell: row => <span className={`${row.value >= 0 ? "text-blue-400" : "text-red-800"} whitespace-nowrap w-16 font-bold`}>{formatPaymentValue(row.value)}</span>,
                 sortable: true,
                 searchable: true,
                 selector: row => row.value.toString(),
@@ -293,7 +294,16 @@ export default function PaymentsTable({ columnsProps = [],dateField = "at", clas
     useEffect(() => {
         setFilteredPayments(payments);
     }, [])
-    
+
+    const updateTableSummary = payments =>  {
+        setTableSummary({
+            total: getBalanceForAllPayments(payments),
+            incomes: getPayments(payments),
+            expenses: getDischarges(payments),
+        })
+    }
+
+    useEffect(() => updateTableSummary(filteredPayments), [filteredPayments])
 
     useEffect(() => {
         if(showDischarges) {
@@ -320,6 +330,7 @@ export default function PaymentsTable({ columnsProps = [],dateField = "at", clas
                 defaultTypeValue={defaultTypeValue}
                 className={`rounded-3xl shadow-lg ${className}`}
                 columns={columns}
+                onFilterData={(newFilteredPayments) => updateTableSummary(newFilteredPayments)}
                 data={filteredPayments}
                 noDataComponent={isLoading ? 'Verificando pagos...' : 'No hay pagos disponibles'}
                 pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
@@ -342,7 +353,7 @@ export default function PaymentsTable({ columnsProps = [],dateField = "at", clas
                     onChange={() => setShowIncomes(!showIncomes)}
                 />          
             </div>
-            <TableSummary total={getBalanceForAllPayments()} incomes={getPayments()} expenses={getDischarges()}/>
+            <TableSummary total={tableSummary.total} incomes={tableSummary.incomes} expenses={tableSummary.expenses}/>
             <DeletePaymentModal payment={payment} isOpen={deletePaymentModal.isOpen} onClose={handleOnCloseDeletePaymentModal}/>
             <VerifyPaymentModal payment={payment} isOpen={verifyPaymentModal.isOpen} onClose={handleOnCloseVerifyPaymentModal}/>
         </>
