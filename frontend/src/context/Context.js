@@ -5,6 +5,7 @@ import tasksService from "../services/tasksService";
 import clazzesService from "../services/clazzesService";
 import collegesService from "../services/collegesService";
 import paymentsService from "../services/paymentsService";
+import notificationsService from "../services/notificationsService";
 import professorsService from "../services/professorsService";
 import templatesService from "../services/templatesService";
 import categoriesService from "../services/categoriesService";
@@ -35,6 +36,7 @@ export const Provider = ({ children }) => {
     const [alreadyAddedSecretaryPayments, setAlreadyAddedSecretaryPayments] = useState(false);
     const [isLoadingPayments, setIsLoadingPayments] = useState(true);
     const [clazzes, setClazzes] = useState([]);
+    const [notifications, setNotifications] = useState([]);
     const [isLoadingClazzes, setIsLoadingClazzes] = useState(true);
     const [categories, setCategories] = useState([]);
     const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -79,16 +81,6 @@ export const Provider = ({ children }) => {
             });
             setColleges(collegesList);
             setIsLoadingColleges(false);
-        }
-        const getPayments = async () => {
-            const paymentsList = await paymentsService.getAllPayments();
-            const sortedList = paymentsList.sort((a, b) => {
-                const dateA = new Date(a.at);
-                const dateB = new Date(b.at);
-                return dateB - dateA;
-            });
-            setPayments(sortedList);
-            setIsLoadingPayments(false);
         }
         const getServices = async () => {
             const services = await templatesService.getServices();
@@ -143,6 +135,12 @@ export const Provider = ({ children }) => {
             });
             setAgendaLocations(locations);
         }
+        const getNotifications = async () => {
+            const notifications = await notificationsService.getNotifications();
+            setNotifications(notifications)
+        }
+        
+        getNotifications();
         
         getUsers();
         getStudents();
@@ -156,6 +154,27 @@ export const Provider = ({ children }) => {
         getProffesors();
         getAgendaLocations();
     }, [user]);
+
+    const removeNotification = async (notificationId) => {
+        await notificationsService.removeById(notificationId)
+        setNotifications(notifications.filter(n => n.id !== notificationId))
+    }
+
+    const clearNotifications = async () => {
+        await Promise.all(notifications.map(notification => notificationsService.removeById(notification.id)))
+        setNotifications([])
+    }
+
+    const getPayments = async () => {
+        const paymentsList = await paymentsService.getAllPayments();
+        const sortedList = paymentsList.sort((a, b) => {
+            const dateA = new Date(a.at);
+            const dateB = new Date(b.at);
+            return dateB - dateA;
+        });
+        setPayments(sortedList);
+        setIsLoadingPayments(false);
+    }
 
     const addSecretaryPaymentsToPayments = async () => {
         const secretaryPayments = await paymentsService.getSecretaryPayments();
@@ -351,11 +370,25 @@ export const Provider = ({ children }) => {
         }
     }
 
-    const verifyPayment = async (paymentId) => {
+    const verifyPayment = async (paymentId, paymentData) => {
         const veryfiedPayment = await paymentsService.verifyPayment(paymentId);
         changeAlertStatusAndMessage(true, 'success', 'El pago fue verificado exitosamente!');
-        setPayments(current => current.map(p => ({ ...p, verified: true, user: users.find(u => u.id === p.userId) })));
+        setPayments(current => current.map(p => {
+            if (p.id === paymentId) {
+                p.verified = true
+                for (const key of Object.keys(paymentData)) {
+                    p[key] = paymentData[key]
+                }
+                p.user = users.find(u => u.id === p.userId)
+            }
+            return p
+        }));
         return veryfiedPayment;
+    }
+
+    const splitPayment = async (paymentData, paymentId) => {
+        await paymentsService.splitPayment(paymentData, paymentId)
+        await getPayments()
     }
 
     const deletePayment = async (id) => {
@@ -907,6 +940,10 @@ export const Provider = ({ children }) => {
             getCourseById,
             user,
             getPendingPayments,
+            splitPayment,
+            notifications,
+            removeNotification,
+            clearNotifications,
         }}>
             <GoogleApiProvider clientId={user?.googleDriveCredentials?.clientId}>
                 <GoogleOAuthProvider clientId={user?.googleDriveCredentials?.clientId}>
