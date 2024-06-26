@@ -1,6 +1,7 @@
 import { StatusCodes } from "http-status-codes";
 import { payment, course, student, user, file, professor, secretaryPayment, servicePayment, item } from "../db/index.js";
 import * as logService from "./logService.js";
+import * as notificationService from "./notificationService.js";
 import { Op } from "sequelize";
 import utils from "../utils/functions.js";
 
@@ -48,6 +49,21 @@ export const create = async (paymentParam, informerId) => {
   return (createdPayments.length === 1) ? createdPayments[0] : createdPayments;
 };
 
+export const splitPayment = async (originalPaymentId, newPaymentParam) => {
+  let originalPayment = await payment.findByPk(originalPaymentId);
+  const paymentCloned = originalPayment.get({ plain: true });
+  for (const key of Object.keys(newPaymentParam)) {
+    paymentCloned[key] = newPaymentParam[key]
+  }
+  delete paymentCloned.id
+  paymentCloned.paymentId = originalPaymentId
+  const paymentCreated = await payment.create(paymentCloned)
+  originalPayment = await payment.findByPk(originalPaymentId);
+  originalPayment.value -= newPaymentParam.value;
+  originalPayment.save()
+  return paymentCreated;
+}
+
 export const createSecretaryPayment = (secretaryPaymentParam) => {
   return secretaryPayment.create(secretaryPaymentParam);
 }
@@ -89,11 +105,16 @@ export const addTodayPaymentServices = async () => {
   });
   let newPayments = []
   todayServicePayments.forEach(sp => {
-    const { type, value, discount, note, itemId } = sp
+    let { type, value, discount, note, itemId } = sp
+    if (value > 0)
+      value = value *-1
     newPayments.push({ type, value, discount, note, itemId, at: today, operativeResult: today, })
   })
   console.log("Adding " + newPayments.length + " payments");
-  await payment.bulkCreate(newPayments);
+  for (const newPayment of newPayments) {
+    const dbPayment = await payment.create(newPayment);
+    notificationService.notifyAll(dbPayment.id);
+  }
   todayServicePayments.forEach(sp => {
     sp.lastTimeAdded = formattedDate
     sp.save()

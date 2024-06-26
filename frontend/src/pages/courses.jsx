@@ -35,7 +35,7 @@ import { Link } from "react-router-dom";
 import StudentCalendar from "../components/calendar/studentCalendar";
 
 export default function Courses(props) {
-    const { courses, students, professors, isLoadingStudents, deleteCourse, addStudent, newCourse, editCourse, changeTaskStatus, changeAlertStatusAndMessage, getStudentsByCourse } = useContext(Context);
+    const { courses, students, professors, isLoadingStudents, deleteCourse, addStudent, newCourse, editCourse, changeTaskStatus, changeAlertStatusAndMessage, getStudentsByCourse, deleteCourseTask } = useContext(Context);
     const [displayModal, setDisplayModal] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [startAt, setStartAt] = useState(dayjs(new Date()));
@@ -76,6 +76,7 @@ export default function Courses(props) {
         setIsDateSelected(false);
         setNewProfessor(false);
         setNeedsRegistration(false);
+        setIsLoading(false);
         setStartAt(dayjs(new Date()));
         setEndAt(dayjs(new Date()));
         setCourseProfessors([]);
@@ -322,11 +323,6 @@ export default function Courses(props) {
             searchable: true,
         },
         {
-            name: 'Descripción',
-            selector: row => row.description,
-            sortable: true,
-        },
-        {
             name: 'Comentarios',
             cell: row => {return (<><div className="flex flex-col justify-center">
             <div className="relative py-3 sm:max-w-xl sm:mx-auto">
@@ -343,15 +339,6 @@ export default function Courses(props) {
         {
             name: 'Alumnos',
             selector: row => {return (<div className="flex-row"><button className="underline text-yellow-900 mx-1" onClick={() => openStudentsTaskModal(row.students, row.title, row.id)}>Ver alumnos</button></div>)},
-            sortable: true,
-        },
-        {
-            name: 'Fecha limite',
-            selector: row => {var dt = new Date(row.limitDate);
-                let year  = dt.getFullYear();
-                let month = (dt.getMonth() + 1).toString().padStart(2, "0");
-                let day   = dt.getDate().toString().padStart(2, "0");
-                var date = day + '/' + month + '/' + year; return date},
             sortable: true,
         },
     ];
