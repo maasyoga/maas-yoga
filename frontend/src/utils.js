@@ -132,10 +132,10 @@ export function dateToString(str) {
     return date;
 }
 
-export function formatPaymentValue(value) {
+export function formatPaymentValue(value, fromBlance) {
     try {
         let paymentValue = value.toString();
-        paymentValue = paymentValue.replace("-", "");
+        if(!fromBlance) paymentValue = paymentValue.replace("-", "");
         let formatter = new Intl.NumberFormat('es-CL', {
             style: 'currency',
             currency: 'CLP',
@@ -150,6 +150,12 @@ export function formatPaymentValue(value) {
 
 export function isByStudent(criteria) {
     return criteria.split("-")[0] === "student"
+}
+
+export function prettyCriteria(periodCriteria, criteriaValue) {
+    return isByAssistant(periodCriteria) ? `Se debe pagar ${formatPaymentValue(criteriaValue)} por asistir.` 
+        : isByPercentage(periodCriteria) ? `Se debe pagar el ${criteriaValue}% del total de ingresos.` 
+        : `Se debe pagar ${formatPaymentValue(criteriaValue)} por cada estudiante.`
 }
 
 export function isByPercentage(criteria) {
