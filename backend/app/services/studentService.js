@@ -194,7 +194,108 @@ export const getAll = async () => {
   return student.findAll({ include: [course] });
 };
 
-a
+//TODO: optimizar estas consultas
+export const getStudentsByCourse = async (courseId) => {
+  const c = await course.findOne({ include: [{
+    model: student,
+    include: [courseTask],
+    attributes: ["name", "lastName", "document", "email", "phoneNumber", "id"]
+  }], where: { id: courseId } })
+  let studentsIds = c.students.map(c => c.id)
+  const payments = await payment.findAll({ where: { courseId, studentId: {
+    [Op.in]: studentsIds
+  } } })
+  if (c.isCircular) {
+    const getCircularPayment = (studentId) => payments.find(p => !p.isRegistrationPayment && p.studentId == studentId);
+    for (const s of c.dataValues.students) {
+      const st = s.dataValues
+      if (c.needsRegistration) {
+        st.registrationPayment = getRegistrationPayment(st.id)
+        st.registrationPaid = st.registrationPayment != undefined;
+      }
+      st.suspendedPeriods = await courseStudentSuspend.findAll({ where: { studentId: st.id, courseId } });
+      st.circularPayment = getCircularPayment(st.id)
+      st.pendingPayments = { circular: !st.circularPayment }
+    }
+    return c.dataValues.students;
+  }
+  let courseStartAt = c.startAt
+  courseStartAt.setHours(0);
+  courseStartAt.setMinutes(0);
+  courseStartAt.setSeconds(0);
+  courseStartAt.setMilliseconds(0);
+  let courseEndAt = c.endAt
+  courseEndAt.setHours(23);
+  courseEndAt.setMinutes(59);
+  courseEndAt.setSeconds(59);
+  courseEndAt.setMilliseconds(999);
+  const dateSeries = utils.getMonthlyDateSeries(courseStartAt, courseEndAt)
+  const getRegistrationPayment = (studentId) => payments.find(p => p.isRegistrationPayment && p.studentId == studentId);
+  const getPaymentByYearAndMonthAndStudentId = (year, month, studentId) => {
+    return payments.find(p => {
+      if (p.isRegistrationPayment) {
+        return false
+      }
+      if (p.studentId == studentId) {
+        const date = p.operativeResult
+        return year == date.getFullYear() && (date.getMonth()+1) == month
+      } else {
+        return false
+      }
+    })
+  }
+  const now = new Date()
+  const currentMonth = now.getMonth()+1
+  const currentYear = now.getFullYear()
+  for (const s of c.dataValues.students) {
+    const st = s.dataValues
+    if (c.needsRegistration) {
+      st.registrationPayment = getRegistrationPayment(st.id)
+      st.registrationPaid = st.registrationPayment != undefined;
+    }
+    st.pendingPayments = {}
+    st.suspendedPeriods = await courseStudentSuspend.findAll({ where: { studentId: st.id, courseId } });
+    st.suspendedPeriods = st.suspendedPeriods.map(sp => ({ suspendedAt: sp.suspendedAt, suspendedEndAt: sp.suspendedEndAt }))
+    st.suspendedPeriodsParsed = await getSuspendedPeriods(st.suspendedPeriods)
+    st.status = getStudentStatus(st.suspendedPeriodsParsed);
+    const isThisMonthSuspended = st.suspendedPeriodsParsed.includes(currentYear+"-"+(currentMonth < 10 ? "0"+currentMonth : currentMonth))
+    st.currentMonth = isThisMonthSuspended ? STUDENT_MONTHS_CONDITIONS.SUSPEND : STUDENT_MONTHS_CONDITIONS.NOT_PAID
+    dateSeries.forEach(date => {
+      const year = date.getFullYear()
+      const month = date.getMonth()+1
+      if (!(year in st.pendingPayments)) {
+        st.pendingPayments[year] = {}
+      }
+      const paymentByYearAndMonth = getPaymentByYearAndMonthAndStudentId(year, month, st.id)
+      if (paymentByYearAndMonth) {
+        st.pendingPayments[year][month] = { condition: STUDENT_MONTHS_CONDITIONS.PAID, payment: {at: paymentByYearAndMonth.at, value: paymentByYearAndMonth.value } }
+        if (year == currentYear && month == currentMonth) {
+          st.currentMonth = STUDENT_MONTHS_CONDITIONS.PAID
+        }
+      } else {
+        const studentMemberSince = st.courseStudent.createdAt;
+        const monthSince = studentMemberSince.getMonth() +1
+        const yearSince = studentMemberSince.getFullYear()
+        if (yearSince < year) {
+          st.pendingPayments[year][month] = { condition: STUDENT_MONTHS_CONDITIONS.NOT_PAID }
+        } else if (yearSince == year) {
+          if (monthSince < month) {
+            st.pendingPayments[year][month] = { condition: STUDENT_MONTHS_CONDITIONS.NOT_PAID }
+          } else {
+            st.pendingPayments[year][month] = { condition: STUDENT_MONTHS_CONDITIONS.NOT_TAKEN }
+          }
+        } else {
+          st.pendingPayments[year][month] = { condition: STUDENT_MONTHS_CONDITIONS.NOT_TAKEN }
+        }
+      }
+      if (st.currentMonth == STUDENT_MONTHS_CONDITIONS.NOT_PAID && !utils.isDateBetween(new Date(), courseStartAt, courseEndAt)) {
+        st.currentMonth = STUDENT_MONTHS_CONDITIONS.NOT_TAKEN;
+      }
+    })
+    calcSuspendedPaymentsBySuspendedPeriods(st.suspendedPeriodsParsed, st.pendingPayments)
+  }
+  return c.dataValues.students
+};
 
 export const suspendStudentFromCourse = async (studentId, courseId, from, to = null) => {
   const whereStudentCourseFrom = { where: { studentId, courseId, suspendedAt: from } }
