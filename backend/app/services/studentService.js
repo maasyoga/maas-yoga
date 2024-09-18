@@ -106,7 +106,7 @@ export const pendingPayments = async () => {
   coursesPeriod = await coursesPeriod;
   courseMemberSince = await courseMemberSince;
   let studentIds = Object.keys(courseMemberSince.students);
-  let studentPayments = await payment.findAll({ where: { studentId: { [Op.in]: studentIds } } });
+  let studentPayments = await payment.findAll({ where: { studentId: { [Op.in]: studentIds }, isRegistrationPayment: false } });
   coursesPeriod.forEach(coursePeriod => {
     studentIds.forEach(studentId => {
       const courseId = coursePeriod["course_id"]
@@ -158,6 +158,35 @@ export const pendingPayments = async () => {
       response.students[studentId].courses[courseId].periods[year][month] = status;
     });
   });
+
+  const circularCourses = await course.findAll({ 
+    attributes: ["id"],
+    where: { isCircular: true },
+    include: {
+      model: courseStudent,
+      attributes: ["createdAt", "courseId", "studentId"],
+  }})
+  studentIds = []
+  circularCourses.forEach(circularCourse => {
+    circularCourse.courseStudents.forEach(cs => {
+      studentIds.push(cs.studentId)
+    })
+  })
+  studentPayments = await payment.findAll({ where: { studentId: { [Op.in]: studentIds }, isRegistrationPayment: false } });
+
+  circularCourses.forEach(circularCourse => {
+    circularCourse.courseStudents.forEach(cs => {
+      if (!(cs.studentId in response.students)) {
+        response.students[cs.studentId] = { courses: {} }
+      }
+      const circularPayment = studentPayments.find(p => p.studentId == cs.studentId && p.courseId == circularCourse.id);
+      response.students[cs.studentId].courses[circularCourse.id] = {
+        memberSince: cs.createdAt,
+        circularPayment: circularPayment == undefined ? null : circularPayment
+      }
+    })
+  })
+
   return onlyNotPaidStudents(response);
 };
 
@@ -165,92 +194,7 @@ export const getAll = async () => {
   return student.findAll({ include: [course] });
 };
 
-export const getStudentsByCourse = async (courseId) => {
-  const c = await course.findOne({ include: [{
-    model: student,
-    include: [courseTask]
-  }], where: { id: courseId } })
-  let courseStartAt = c.startAt
-  courseStartAt.setHours(0);
-  courseStartAt.setMinutes(0);
-  courseStartAt.setSeconds(0);
-  courseStartAt.setMilliseconds(0);
-  let courseEndAt = c.endAt
-  courseEndAt.setHours(23);
-  courseEndAt.setMinutes(59);
-  courseEndAt.setSeconds(59);
-  courseEndAt.setMilliseconds(999);
-  const studentsIds = c.students.map(c => c.id)
-  const payments = await payment.findAll({ where: { courseId, studentId: {
-    [Op.in]: studentsIds
-  } } })
-  const dateSeries = utils.getMonthlyDateSeries(courseStartAt, courseEndAt)
-  const getRegistrationPayment = (studentId) => payments.find(p => p.isRegistrationPayment && p.studentId == studentId);
-  const getPaymentByYearAndMonthAndStudentId = (year, month, studentId) => {
-    return payments.find(p => {
-      if (p.isRegistrationPayment) {
-        return false
-      }
-      if (p.studentId == studentId) {
-        const date = p.operativeResult
-        return year == date.getFullYear() && (date.getMonth()+1) == month
-      } else {
-        return false
-      }
-    })
-  }
-  const now = new Date()
-  const currentMonth = now.getMonth()+1
-  const currentYear = now.getFullYear()
-  for (const s of c.dataValues.students) {
-    const st = s.dataValues
-    if (c.needsRegistration) {
-      st.registrationPayment = getRegistrationPayment(st.id)
-      st.registrationPaid = st.registrationPayment != undefined;
-    }
-    st.pendingPayments = {}
-    st.suspendedPeriods = await courseStudentSuspend.findAll({ where: { studentId: st.id, courseId } });
-    st.suspendedPeriods = st.suspendedPeriods.map(sp => ({ suspendedAt: sp.suspendedAt, suspendedEndAt: sp.suspendedEndAt }))
-    st.suspendedPeriodsParsed = await getSuspendedPeriods(st.suspendedPeriods)
-    st.status = getStudentStatus(st.suspendedPeriodsParsed);
-    const isThisMonthSuspended = st.suspendedPeriodsParsed.includes(currentYear+"-"+(currentMonth < 10 ? "0"+currentMonth : currentMonth))
-    st.currentMonth = isThisMonthSuspended ? STUDENT_MONTHS_CONDITIONS.SUSPEND : STUDENT_MONTHS_CONDITIONS.NOT_PAID
-    dateSeries.forEach(date => {
-      const year = date.getFullYear()
-      const month = date.getMonth()+1
-      if (!(year in st.pendingPayments)) {
-        st.pendingPayments[year] = {}
-      }
-      const paymentByYearAndMonth = getPaymentByYearAndMonthAndStudentId(year, month, st.id)
-      if (paymentByYearAndMonth) {
-        st.pendingPayments[year][month] = { condition: STUDENT_MONTHS_CONDITIONS.PAID, payment: paymentByYearAndMonth }
-        if (year == currentYear && month == currentMonth) {
-          st.currentMonth = STUDENT_MONTHS_CONDITIONS.PAID
-        }
-      } else {
-        const studentMemberSince = st.courseStudent.createdAt;
-        const monthSince = studentMemberSince.getMonth() +1
-        const yearSince = studentMemberSince.getFullYear()
-        if (yearSince < year) {
-          st.pendingPayments[year][month] = { condition: STUDENT_MONTHS_CONDITIONS.NOT_PAID }
-        } else if (yearSince == year) {
-          if (monthSince < month) {
-            st.pendingPayments[year][month] = { condition: STUDENT_MONTHS_CONDITIONS.NOT_PAID }
-          } else {
-            st.pendingPayments[year][month] = { condition: STUDENT_MONTHS_CONDITIONS.NOT_TAKEN }
-          }
-        } else {
-          st.pendingPayments[year][month] = { condition: STUDENT_MONTHS_CONDITIONS.NOT_TAKEN }
-        }
-      }
-      if (st.currentMonth == STUDENT_MONTHS_CONDITIONS.NOT_PAID && !utils.isDateBetween(new Date(), courseStartAt, courseEndAt)) {
-        st.currentMonth = STUDENT_MONTHS_CONDITIONS.NOT_TAKEN;
-      }
-    })
-    calcSuspendedPaymentsBySuspendedPeriods(st.suspendedPeriodsParsed, st.pendingPayments)
-  }
-  return c.dataValues.students
-};
+a
 
 export const suspendStudentFromCourse = async (studentId, courseId, from, to = null) => {
   const whereStudentCourseFrom = { where: { studentId, courseId, suspendedAt: from } }
@@ -284,6 +228,12 @@ const onlyNotPaidStudents = (data) => {
   for (const studentId of studentIds) {
     const studentCoursesIds = Object.keys(data.students[studentId].courses);
     for (const courseId of studentCoursesIds) {
+      if ("circularPayment" in data.students[studentId].courses[courseId]) {
+        if (data.students[studentId].courses[courseId].circularPayment != null) {
+          delete data.students[studentId].courses[courseId]
+        }
+        continue
+      }
       const courseYears = Object.keys(data.students[studentId].courses[courseId].periods);
       let hasAnyNotPaidPaymentCourse = false;
       for (const year of courseYears) {

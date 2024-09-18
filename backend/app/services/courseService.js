@@ -148,8 +148,18 @@ export const editById = async (courseParam, id) => {
 
 export const getById = async (id) => {
   const c = await course.findByPk(id, { include: [
-    { model: courseTask, include:[student] },
-    payment] });
+    {
+      model: courseTask, include:[{
+        model: student,
+        attributes: ['name', 'lastName', 'email'],
+        through: { attributes: ['completed'] }
+      }]
+    },
+    {
+      model: payment,
+      attributes: ['id', 'operativeResult', 'value', 'periodFrom']
+    }] 
+  });
   const professorsWithPeriods = await getProfessorPeriodsInCourse(c.id);
   c.dataValues.students = await getStudentsByCourse(c.id)
   c.dataValues.periods = []
@@ -158,7 +168,7 @@ export const getById = async (id) => {
     c.dataValues.periods = [...c.dataValues.periods, ...professorPeriods]
 
   }
-  return c;
+  return c
 };
 
 export const getAll = async () => {
@@ -303,14 +313,12 @@ export const calcProfessorsPayments = async (from, to, professorId, courseId) =>
   }
   const isCriteriaByStudent = (criteria) => criteria === CRITERIA_COURSES.STUDENT || criteria === CRITERIA_COURSES.STUDENT_ASSISTANCE;
   for (const course of coursesInRange) {
-    let totalByProfessors = 0
     for (const prof of course.professors) {
       if ("result" in prof) {
         prof.result.courseId = course.id;
         prof.result.criteria = prof.criteria;
         prof.result.criteriaValue = prof.criteriaValue;
         prof.result.collectedByPayments = prof.result.payments.reduce((total, p) => total + p.value, 0);
-        totalByProfessors += prof.result.collectedByPayments
         prof.result.totalStudents = prof.result.payments.map(p => p.studentId);
         prof.result.totalStudents = utils.removeDuplicated(prof.result.totalStudents).length;
         const criteria = prof.result.period.criteria;
@@ -324,7 +332,7 @@ export const calcProfessorsPayments = async (from, to, professorId, courseId) =>
         prof.dataValues.result = prof.result;
       }
     }
-    course.dataValues.collectedByPayments = totalByProfessors
+    course.dataValues.collectedByPayments = paymentsInRange.reduce((total, p) => course.id === p.courseId ? total + p.value : total, 0);
     course.dataValues.professors = course.professors; 
   }
   return coursesInRange;

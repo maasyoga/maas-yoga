@@ -1,23 +1,12 @@
 import React, { useContext, useEffect, useState } from 'react'
 import Container from '../components/container'
 import { useParams } from 'react-router-dom';
-import ViewSlider from 'react-view-slider'
 import { Context } from '../context/Context';
-import CardItem from '../components/card/cardItem';
-import SchoolIcon from '@mui/icons-material/School';
-import LocalLibraryIcon from '@mui/icons-material/LocalLibrary';
 import PaidIcon from '@mui/icons-material/Paid';
 import AddTaskIcon from '@mui/icons-material/AddTask';
-import ProfessorCourses from '../components/section/professor/professorCourses';
-import ProfessorPayments from '../components/section/professor/ProfessorPayments';
-import ProfessorCard from '../components/card/professorCard';
-import CardProfessorStatus from '../components/card/cardProfessorStatus';
-import VerifyPaymentModal from '../components/modal/verifyPaymentModal';
 import useModal from '../hooks/useModal';
-import DeletePaymentModal from '../components/modal/deletePaymentModal';
-import AddProfessorPaymentModal from '../components/modal/addProfessorPaymentModal';
-import { formatDateDDMMYY, formatPaymentValue, getMonthNameByMonthNumber, isByAssistance, isByAssistant, isByPercentage, randomColor, series, toMonthsNames } from '../utils';
-import { CASH_PAYMENT_TYPE, STUDENT_STATUS } from '../constants';
+import { formatDateDDMMYY, getMonthNameByMonthNumber, prettyCriteria, randomColor, series } from '../utils';
+import { STUDENT_STATUS } from '../constants';
 import SimpleCard from '../components/card/simpleCard';
 import SliderMonthCard from '../components/card/sliderMonthCard';
 import Table from '../components/table';
@@ -30,6 +19,7 @@ import { Box, Tab } from '@mui/material';
 import { TabContext, TabList, TabPanel } from '@mui/lab';
 import TasksTable from '../components/table/tasksTable';
 import TaskModal from '../components/courses/taskModal';
+import Spinner from '../components/spinner/spinner';
 
 const ProfessorCalendar = ({ coursePeriods }) => Object.keys(coursePeriods).map(year => <div className='mb-2' key={year}>
 	<div className='font-medium text-xl mb-1'>{year}</div>
@@ -109,9 +99,12 @@ const ProfessorsPeriods = ({ professorPeriods }) => {
 
 	const getProfessorDetail = (period, i) => {
 		const professor = professors.find(p => p.id == period.professorId)
-		return <li key={i} className='flex items-center'>
+		return <li key={i} className='flex items-center mb-2'>
 			<span className='mr-2 text-4xl' style={{color: period.color }}>•</span>
-			<span>{professor.name + " " + professor.lastName} <span className='font-medium ml-2'>{formatDateDDMMYY(period.startAt)} - {formatDateDDMMYY(period.endAt)}</span></span>
+			<div>
+				<div>{professor.name + " " + professor.lastName} <span className='font-medium ml-2'>{formatDateDDMMYY(period.startAt)} - {formatDateDDMMYY(period.endAt)}</span></div>
+				<div className='text-gray-500'>{prettyCriteria(period.criteria, period.criteriaValue)}</div>
+			</div>
 		</li>
 	}
 	
@@ -177,7 +170,7 @@ const ProfessorsModule = ({ course, coursePeriods }) => <>
 	</div>
 	<div className='my-6'></div>
 </div>
-<div className='divide-y'>
+<div className={`divide-y ${course?.isCircular && 'hidden'}`}>
 	<div>
 		<h2 className='text-2xl font-bold mb-2'>Periodos</h2>
 		<ProfessorCalendar coursePeriods={coursePeriods}/>
@@ -237,7 +230,7 @@ const CourseDetail = () => {
 	const handleChangeTabValue = (_, newValue) => setTabValue(newValue);
 
 	useEffect(() => {
-		if (course == null) return
+		if (course == null || course.isCircular) return
 		const result = series(course.startAt, course.endAt)
 		const periods = {}
 		result.forEach(period => {
@@ -262,8 +255,8 @@ const CourseDetail = () => {
 
 	
   return (
-    <Container disableTitle className="max-w-full" items={[{ name: "Cursos", href: "/home/courses" }, { name: `${course?.title}` }]}>
-		{course !== null &&
+    <Container disableTitle className="max-w-full" items={[{ name: "Cursos", href: "/home/courses" }, { name: `${course?.title || ''}` }]}>
+		{course !== null ?
 		<>
 			<h1 className='text-2xl md:text-3xl text-center mb-12'>{course?.title}</h1>
 			<p className='text-center'>{course.description}</p>
@@ -293,6 +286,9 @@ const CourseDetail = () => {
 			</Box>
 		</>
 		
+		: <div className="flex justify-center items-center h-screen">
+			<Spinner/>
+		</div>
 		}
     </Container>
   )

@@ -13,7 +13,7 @@ import VerifyPaymentModal from "../modal/verifyPaymentModal";
 import useModal from "../../hooks/useModal";
 import DeletePaymentModal from "../modal/deletePaymentModal";
 
-export default function PaymentsTable({ columnsProps = [],dateField = "at", className = "", payments, defaultSearchValue, defaultTypeValue, isLoading, canVerify, editPayment, editMode, onClickDeletePayment, onClickVerifyPayment }) {
+export default function PaymentsTable({ columnsProps = [], dateField = "at", className = "", payments, defaultSearchValue, defaultTypeValue, isLoading, canVerify, editPayment, editMode, onClickDeletePayment, onClickVerifyPayment }) {
     const { user, categories, changeAlertStatusAndMessage, getCourseById, getUserById } = useContext(Context);
     const [payment, setPayment] = useState(null);
     const verifyPaymentModal = useModal()
@@ -114,7 +114,7 @@ export default function PaymentsTable({ columnsProps = [],dateField = "at", clas
             const user = getUserById(row.verifiedBy)
             return user.firstName + ' ' + user.lastName;
         } else {
-            return "No verificado"
+            return row.verified ? "Verificado" : "No verificado"
         }
     }
 
@@ -190,7 +190,7 @@ export default function PaymentsTable({ columnsProps = [],dateField = "at", clas
             },
             {
                 name: 'Fecha',
-                selector: row => row[dateField],
+                selector: row => dateToString(row[dateField]),
                 cell: row => <span>{dateToString(row[dateField])}</span>,
                 sortable: true,
                 searchable: true,
@@ -200,10 +200,11 @@ export default function PaymentsTable({ columnsProps = [],dateField = "at", clas
             },
             {
                 name: 'Importe',
-                cell: row => <span className={`${row.value >= 0 ? "text-blue-400" : "text-red-800"} whitespace-nowrap w-16 font-bold`}>{formatPaymentValue(row.value)}</span>,
+                cell: row => <span className={`${row.value >= 0 ? "text-blue-400" : "text-red-800"} whitespace-nowrap w-16 font-bold`}>{formatPaymentValue(row.value)}{row.discount && <span className="ml-1">{`(-${row.discount}%)`}</span>}</span>,
                 sortable: true,
                 searchable: true,
                 selector: row => row.value.toString(),
+                minWidth: '120px',
             },
             {
                 name: 'Modo de pago',
@@ -293,7 +294,7 @@ export default function PaymentsTable({ columnsProps = [],dateField = "at", clas
             }
         })
         return columns;
-    }, [categories, dateField, columnsProps]); 
+    }, [categories, dateField]); 
 
     useEffect(() => {
         setFilteredPayments(payments);
