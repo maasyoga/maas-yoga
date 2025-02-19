@@ -14,13 +14,14 @@ import useModal from "../../hooks/useModal";
 import DeletePaymentModal from "../modal/deletePaymentModal";
 
 export default function PaymentsTable({ columnsProps = [], dateField = "at", className = "", payments, defaultSearchValue, defaultTypeValue, isLoading, canVerify, editPayment, editMode, onClickDeletePayment, onClickVerifyPayment }) {
-    const { user, categories, changeAlertStatusAndMessage, getCourseById, getUserById } = useContext(Context);
+    const { user, categories, changeAlertStatusAndMessage, getCourseById, getUserById, courses } = useContext(Context);
     const [payment, setPayment] = useState(null);
     const verifyPaymentModal = useModal()
     const deletePaymentModal = useModal()
     const [showDischarges, setShowDischarges] = useState(false);
     const [showIncomes, setShowIncomes] = useState(false);
     const [filteredPayments, setFilteredPayments] = useState([]);
+    const [showOpResultDate, setShowOpResultDate] = useState(false);
     const [tableSummary, setTableSummary] = useState({ total: 0, incomes: 0, expenses: 0 })
 
     const getBalanceForAllPayments = (payments) => {
@@ -147,8 +148,8 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
     const getProfessorFullName = (row) => row.professor !== null ? row?.professor?.name + ' ' + row?.professor?.lastName : "";
 
     const getItemById = (row) => {
+        let item = "";
         try {
-            let item = "";
             if(row.itemId !== null) {
                 try {
                     const newItem = categories.find(category => category.items.find(item => item.id === row.itemId)).items.find(item => item.id === row.itemId);
@@ -158,16 +159,16 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
                 }
             }else {
                 if((row.student !== null) && (row.courseId !== null)) {
-                    const course = getCourseById(row.courseId);
+                    const course = row?.course
                     if(typeof course !== "undefined")  item = course?.title;
                 }else if((row.courseId !== null) && (row.value < 0) && (row.student === null) && (row.professorId !== null)) {
-                    const course = getCourseById(row.courseId);
+                    const course = row.course;
                     if(typeof course !== "undefined")  item = course?.title;
                 }
             }
             return item;
         } catch (e) {
-            return ""
+            return item;
         }
     }
 
@@ -190,8 +191,8 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
             },
             {
                 name: 'Fecha',
-                selector: row => dateToString(row[dateField]),
-                cell: row => <span>{dateToString(row[dateField])}</span>,
+                selector: row => showOpResultDate ? dateToString(row['operativeResult']) : dateToString(row['at']),
+                cell: row => <span>{showOpResultDate ? dateToString(row['operativeResult']) : dateToString(row['at'])}</span>,
                 sortable: true,
                 searchable: true,
                 maxWidth: '120px',
@@ -294,7 +295,7 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
             }
         })
         return columns;
-    }, [categories, dateField]); 
+    }, [categories, dateField, courses, showOpResultDate]); 
 
     useEffect(() => {
         setFilteredPayments(payments);
@@ -360,7 +361,14 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
                     className="ml-2"
                     disabled={showDischarges}
                     onChange={() => setShowIncomes(!showIncomes)}
-                />          
+                />      
+                <CustomCheckbox
+                    checked={showOpResultDate}
+                    labelOn="Motrar fecha operativa"
+                    labelOff="Mostrar fecha operativa"
+                    className="ml-2"
+                    onChange={() => setShowOpResultDate(!showOpResultDate)}
+                /> 
             </div>
             <TableSummary total={tableSummary.total} incomes={tableSummary.incomes} expenses={tableSummary.expenses}/>
             <DeletePaymentModal payment={payment} isOpen={deletePaymentModal.isOpen} onClose={handleOnCloseDeletePaymentModal}/>

@@ -1,7 +1,6 @@
 import React, { useContext, useEffect, useState } from "react";
 import Modal from "../modal";
 import HailIcon from '@mui/icons-material/Hail';
-import Select from "react-select";
 import CommonInput from "../commonInput";
 import ButtonPrimary from "../button/primary";
 import { Context } from "../../context/Context";
@@ -9,12 +8,18 @@ import { formatPaymentValue, getMonthNameByMonthNumber, isByAssistance } from ".
 import ButtonSecondary from "../button/secondary";
 import useToggle from "../../hooks/useToggle";
 import PaymentInfo from "../paymentInfo";
+import CustomCheckbox from "../checkbox/customCheckbox";
+import Select from "../select/select";
 
-export default function AddProfessorPaymentModal({ allowManualValue = false, courseId, selectedPeriod, criteriaType, criteriaValue, totalStudents, period, criteria, total, payments, addPayment, isOpen, onClose, professorName }) {
-    const { getCourseById } = useContext(Context)
-    const course = getCourseById(courseId)
+export default function AddProfessorPaymentModal({ courseValue, allowManualValue = false, courseId, selectedPeriod, criteriaType, criteriaValue, totalStudents, period, criteria, total, payments, addPayment, isOpen, onClose, professorName }) {
+    const { getCourseDetailsById, changeAlertStatusAndMessage } = useContext(Context)
+    const [course, setCourse] = useState(null)
     const isViewingPayments = useToggle()
     const [manualValue, setManualValue] = useState("")
+    const [selectedStudents, setSelectedStudents] = useState([])
+    const [students, setStudents] = useState([])
+    const [studentsPayments, setStudentsPayments] = useState([])
+    const isAllSelected = useToggle()
     const [manualValueEnabled, setManualValueEnabled] = useState(false)
     const values = [
         {
@@ -32,7 +37,16 @@ export default function AddProfessorPaymentModal({ allowManualValue = false, cou
     })
     const [amountStudents, setAmountStudents] = useState("")
     const [totalByStudents, setTotalByStudents] = useState("")
-    const [error, setError] = useState(false)
+
+    const fetchCourse = async () => {
+        const course = await getCourseDetailsById(courseId);
+        setStudents(course.students)
+        setCourse(course);
+    }
+
+    useEffect(() => {
+        fetchCourse();
+    }, [courseId])
 
     const handleInform = () => {
         if (manualValueEnabled) {
@@ -49,28 +63,29 @@ export default function AddProfessorPaymentModal({ allowManualValue = false, cou
     }
 
     useEffect(() => {
-        if (amountStudents == '') {
-            setError(false)
-            return
-        }
-        const amountStudentsInt = parseInt(amountStudents)
-        if ((amountStudentsInt > totalStudents) || amountStudentsInt <= 0) {
-            setError(true)
-            return
-        }
-        setError(false)
-        const paymentValue = payments[0].value
-        if (criteriaType.split("-")[0] == "percentage") {
-            setTotalByStudents((criteriaValue/100) * paymentValue * amountStudentsInt)
-        } else {
-            setTotalByStudents(criteriaValue * amountStudentsInt)
-        }
+        setStudentsPayments(payments.filter(p => selectedStudents.some(st => st.id == p.studentId)))
+    }, [selectedStudents])
 
-    }, [amountStudents])
-    
+    useEffect(() => {
+        let totalCollectedPayments = 0;
+        const isByPercentage = criteriaType.split("-")[0] == "percentage"
+        studentsPayments.forEach(payment => {
+            const amount = isByPercentage ? courseValue : criteriaValue;// Si es por porcentaje, valor del curso. Sino es por estudiante, valor por cada estudiante
+            if (amount == null || amount == undefined) {
+                changeAlertStatusAndMessage(true, 'warning', 'No se ha indicado ' + (isByPercentage ? "valor del curso" : "cantidad por estudiante") + " para este profesor en este periodo.")
+            }
+            const discount = payment.discount == null ? 1 : 1 - (payment.discount/100) // Si tiene descuento, aplico descuento
+            totalCollectedPayments += amount * discount
+        });
+        if (isByPercentage) {
+            setTotalByStudents((criteriaValue/100) * totalCollectedPayments)
+        } else {
+            setTotalByStudents(totalCollectedPayments)
+        }
+    }, [studentsPayments])
 
     const handleChangeSelectValue = (e) => {
-        setAmountStudents("")
+        setSelectedStudents([])
         setValue(e)
     }
 
@@ -85,6 +100,20 @@ export default function AddProfessorPaymentModal({ allowManualValue = false, cou
     const formatSelectedPeriod = () => {
         const [year, month] = selectedPeriod.split("-")
         return year +  " " + getMonthNameByMonthNumber(month)
+    }
+
+    const handleSelectAll = () => {
+        isAllSelected.toggle()
+        if (!isAllSelected.value) {
+            setSelectedStudents([...students])
+        } else {
+            setSelectedStudents([])
+        }
+    }
+
+    const onChangeSelectedStudents = (newValue) => {
+        setSelectedStudents(newValue)
+        setAmountStudents(newValue.length)
     }
     
     return(
@@ -107,27 +136,28 @@ export default function AddProfessorPaymentModal({ allowManualValue = false, cou
             <>
             {isByAssistance(criteriaType) && <Select className="mt-4" placeholder="Seleccionar" value={value} onChange={handleChangeSelectValue} options={values} />}
 
-            {value.value == 'amount_students' && 
+            {value.value == 'amount_students' &&  
             <>
                 <div className="mt-4">
-                    <CommonInput 
-                        label="Cantidad de alumnos"
-                        name="amount-payments"
-                        className="block font-bold text-sm text-gray-700 mb-2"
-                        type="number" 
-                        placeholder="Cantidad" 
-                        value={amountStudents}
-                        isInvalid={error}
-                        invalidMessage={amountStudents <= 0 ? "La cantidad ingresada es incorrecta" : "La cantidad de alumnos seleccionada supera la cantidad de alumnos que abonaron en el periodo"}
-                        onChange={(e) => setAmountStudents(e.target.value)}
+                    <Select
+                        placeholder="Seleccionar"
+                        value={selectedStudents}
+                        isMulti
+                        onChange={onChangeSelectedStudents}
+                        options={students}
+                        getOptionLabel={(student)=> student.name + " " + student.lastName}
+                        getOptionValue={(student)=> student.id} 
                     />
+                    <CustomCheckbox checked={isAllSelected.value} onChange={handleSelectAll} label="Seleccionar todos"/>
                 </div>
             </>}
             <div>
                 {isViewingPayments.value ? 
                 <div>
                     <div>
-                        {payments.map(payment => <PaymentInfo key={payment.id} payment={payment}/>)}
+                        {value.value == 'amount_students' ? 
+                            studentsPayments.map(payment => <PaymentInfo highLightFields={["student"]} hideFields={["course"]} key={payment.id} payment={payment}/>) 
+                            : payments.map(payment => <PaymentInfo highLightFields={["student"]} hideFields={["course"]} key={payment.id} payment={payment}/>)}
                     </div>
                     <div className="underline cursor-pointer" onClick={isViewingPayments.disable}>
                         Ocultar pagos
@@ -142,6 +172,7 @@ export default function AddProfessorPaymentModal({ allowManualValue = false, cou
                     {selectedPeriod && <p>Periodo seleccionado: <span className="font-bold">{formatSelectedPeriod()}</span></p>}
                     <p>Alumnos que abonaron: <span className="font-bold">{totalStudents}</span></p>
                     <p>Pagos registrados en el periodo: <span className="font-bold">{payments.length}</span></p>
+                    {courseValue && <p>Valor del curso: <span className="font-bold">{formatPaymentValue(courseValue)}</span></p>}
                     {value.value == 'amount_students' && amountStudents != '' && 
                         <p>Alumnos seleccionados: <span className="font-bold">{amountStudents}</span></p>
                     }

@@ -23,7 +23,7 @@ export default function CourseProfessorCard({ onInformPayment, course, onShowPay
                 <ListItemIcon className="text-yellow-900">
                     <LocalLibraryIcon/>
                 </ListItemIcon>
-                <Link to={`/home/courses`}>
+                <Link to={`/home/courses/${course.id}`}>
                     <ListItemText primary="Curso" secondary={course.title} />
                 </Link>
             </ListItemButton>

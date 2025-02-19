@@ -20,7 +20,7 @@ const SliderMonthCard = ({ payments, operativeResult = false, title, all = false
 				const month = operativeResult.getMonth()+1
 				date = `${year}-${month}`
 			} else {
-				date = removeDays(p.periodFrom)
+				if(p.periodFrom) date = removeDays(p.periodFrom)
 			}
 			const indexPayment = indexPayments.find(indexPayment => indexPayment.date === date)
 			if (!indexPayment) {
@@ -49,6 +49,7 @@ const SliderMonthCard = ({ payments, operativeResult = false, title, all = false
 	const onClickNextArrow = () => setCurrentIndex(currentIndex+1)
 
 	const formatDate = (date) => {
+		if (date == undefined) return 'Fecha invalida'
 		const split = date.split("-")
 		const month = capitalizeFirstCharacter( getMonthNameByMonthNumber(split[1]) )
 		const year = split[0]

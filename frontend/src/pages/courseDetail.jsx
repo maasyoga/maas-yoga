@@ -19,6 +19,7 @@ import { Box, Tab } from '@mui/material';
 import { TabContext, TabList, TabPanel } from '@mui/lab';
 import TasksTable from '../components/table/tasksTable';
 import TaskModal from '../components/courses/taskModal';
+import CopyTaskModal from '../components/courses/copyTaskModal';
 import Spinner from '../components/spinner/spinner';
 
 const ProfessorCalendar = ({ coursePeriods }) => Object.keys(coursePeriods).map(year => <div className='mb-2' key={year}>
@@ -111,13 +112,16 @@ const ProfessorsPeriods = ({ professorPeriods }) => {
 	return <ul>{professorPeriods.map((period, index) => getProfessorDetail(period, index))}</ul>
 }
 
-const TasksModule = ({ course }) => {
+const TasksModule = ({ course, onUpdateTask }) => {
 	const addTaskModal = useModal()
+	const copyTasksModal = useModal()
 	return <>
 	<h2 className='text-2xl font-bold mb-4'>Tareas</h2>
     <ButtonPrimary className={"mb-4"} onClick={addTaskModal.open}>Agregar tarea<AddTaskIcon className='ml-2'/></ButtonPrimary>
-	<TasksTable course={course}/>
-	<TaskModal isModalOpen={addTaskModal.isOpen} setDisplay={addTaskModal.close} courseName={course.name} courseId={course.id} />
+    <ButtonPrimary className={"mb-4 ml-2"} onClick={copyTasksModal.open}>Copiar tareas de un curso</ButtonPrimary>
+	<TasksTable onUpdateTask={onUpdateTask} course={course}/>
+	<TaskModal onUpdateTask={onUpdateTask} isModalOpen={addTaskModal.isOpen} setDisplay={addTaskModal.close} courseName={course.title} courseId={course.id} />
+	<CopyTaskModal isModalOpen={copyTasksModal.isOpen} setDisplay={copyTasksModal.close} courseName={course.title} courseId={course.id} />
 </>
 }
 
@@ -193,10 +197,10 @@ const CourseDetail = () => {
 	let { courseId } = useParams();
 	const [course, setCourse] = useState(null)
 	const [coursePeriods, setCoursePeriods] = useState([]);
-	const { isLoadingCourses, getCourseDetailsById, isLoadingProfessors } = useContext(Context);
+	const { getCourseDetailsById, isLoadingProfessors } = useContext(Context);
 
 	useEffect(() => {
-		if (!isLoadingCourses && !isLoadingProfessors) {
+		if (!isLoadingProfessors) {
 			const getRandomColor = colorsTaken => {
 				const predefinedColors = ["#B1DDF1", "#9F87AF", "#EE6C4D", "#5EF38C", "#08415C"]
 				for (const color of predefinedColors) {
@@ -206,7 +210,7 @@ const CourseDetail = () => {
 				return randomColor()
 			}
 			const getData = async () => {
-				const course = await getCourseDetailsById(courseId, true)
+				const course = await getCourseDetailsById(courseId)
 				const professorsColors = {}
 				for (const period of course.periods) {
 					const professorId = period.professorId
@@ -223,7 +227,12 @@ const CourseDetail = () => {
 			}
 			getData()
 		}
-	}, [isLoadingCourses, isLoadingProfessors]);
+	}, [isLoadingProfessors]);
+
+	const onUpdateTask = async () => {
+		const course = await getCourseDetailsById(courseId)
+		setCourse(course)
+	}
 
 	const [tabValue, setTabValue] = useState("1");
 
@@ -280,7 +289,7 @@ const CourseDetail = () => {
 						<StudentsModule course={course}/>
 					</TabPanel>
 					<TabPanel className="pt-4" value="3">
-						<TasksModule course={course}/>
+						<TasksModule course={course} onUpdateTask={onUpdateTask}/>
 					</TabPanel>
 				</TabContext>
 			</Box>
