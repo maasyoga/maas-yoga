@@ -3,18 +3,23 @@ import DataTable from "react-data-table-component";
 import SearchBar from "./searchBar";
 import { TABLE_SEARCH_CRITERIA } from "../../constants";
 
-export default function Table({ onFilterData = () => {} , defaultSortFieldId, className = "", columns, onChangePage, defaultSearchValue, defaultTypeValue, data, ...rest }) {
+export default function Table({ serverPaginationData, handleCustomSearchValue, onFilterData = () => {} , defaultSortFieldId, className = "", columns, onChangePage, defaultSearchValue, defaultTypeValue, data, ...rest }) {
     const [searchableColumns, setSearchableColumns] = useState([]);
     const [searchValue, setSearchValue] = useState(defaultSearchValue !== undefined ? defaultSearchValue : "");
     const [typeValue, setTypeValue] = useState(defaultTypeValue !== undefined ? defaultTypeValue : searchableColumns[0]?.name);
     const [dataFiltered, setDataFiltered] = useState(data);
 
     const getCurrentFilteringColumn = () => columns.filter(column => column.name === typeValue)[0];
+    
 
     useEffect(() => {
         if (searchValue !== "") {
             const currentFilteringColumn = getCurrentFilteringColumn();
             const byAllFields = currentFilteringColumn === undefined;
+            if (handleCustomSearchValue != undefined) {
+                handleCustomSearchValue({ searchValue, byAllFields, field: currentFilteringColumn?.name })
+                return
+            }
             if (byAllFields) {
                 setDataFiltered(data.filter(d => {
                     const fields = searchableColumns.map(column => "selector" in column ? column.selector(d) : null);
@@ -35,15 +40,21 @@ export default function Table({ onFilterData = () => {} , defaultSortFieldId, cl
                     if (typeof dataValue === 'number') {
                         dataValue = ""+dataValue;
                     }
-                    if (dataValue === null)
+                    if (dataValue === null || dataValue === undefined) {
                         return false;
+                    }
+                
+                    if (typeof dataValue !== 'string') {
+                        dataValue = String(dataValue);
+                    }
+                    
                     switch (searchCriteria) {
                         case TABLE_SEARCH_CRITERIA.CONTAINS:
-                            return dataValue.toLowerCase().includes(searchValue.toLowerCase())
+                            return dataValue?.toLowerCase().includes(searchValue.toLowerCase())
                         case TABLE_SEARCH_CRITERIA.EQUAL: 
                             return dataValue === searchValue
                         default:
-                            return dataValue.toLowerCase().includes(searchValue.toLowerCase())
+                            return dataValue?.toLowerCase().includes(searchValue.toLowerCase())
                     }
                 }));
             }
@@ -52,7 +63,7 @@ export default function Table({ onFilterData = () => {} , defaultSortFieldId, cl
         }
     }, [data, searchValue, typeValue, searchableColumns]);
 
-    useEffect(() => {
+    useEffect(() => {  
         const searchableColumns = columns.filter(column => "searchable" in column && column.searchable);
         searchableColumns.unshift({ name: "Todo", searchable: true });
         setSearchableColumns(searchableColumns);
@@ -73,7 +84,7 @@ export default function Table({ onFilterData = () => {} , defaultSortFieldId, cl
             <DataTable
                 className={`rounded-3xl shadow-lg mt-1 ${className}`}
                 columns={columns.filter(col => col.hidden !== true)}
-                data={dataFiltered}
+                data={serverPaginationData != undefined ? serverPaginationData : dataFiltered}
                 defaultSortFieldId={defaultSortFieldId}
                 onChangePage={onChangePage}
                 paginationComponentOptions={{ rowsPerPageText: 'Filas por pagina:', rangeSeparatorText: 'de', noRowsPerPage: false, selectAllRowsItem: false, selectAllRowsItemText: 'Todo' }}
