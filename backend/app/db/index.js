@@ -62,7 +62,9 @@ notificationPayment.belongsTo(user, { through: "user_id" });
 payment.hasMany(logPayment);
 payment.belongsTo(payment,{ foreignKey: { allowNull: true }, targetKey: "id" });
 user.hasMany(logPayment);
+logPayment.belongsTo(user, { foreignKey: "userId" });
 professor.belongsToMany(course, { through: { model: professorCourse, unique: false} });
+professorCourse.belongsTo(professor);
 professor.hasMany(payment, { foreignKey: { allowNull: true }, targetKey: "id" });
 course.belongsToMany(professor, { through: { model: professorCourse, unique: false} });
 course.belongsToMany(headquarter, { through: "headquarter_course" });
@@ -89,6 +91,7 @@ headquarter.hasMany(payment, { foreignKey: { allowNull: true }, targetKey: "id" 
 user.hasOne(payment, { foreignKey: { allowNull: true }, targetKey: "id" });
 payment.belongsTo(user, {
   foreignKey: { name: "verifiedBy", allowNull: true },
+  as: "verifiedByUser"
 });
 payment.belongsTo(file, { foreignKey: { allowNull: true } });
 user.hasOne(payment, { foreignKey: { allowNull: true }, targetKey: "verifiedBy" });
