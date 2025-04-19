@@ -164,7 +164,7 @@ export const getById = async (id) => {
   c.dataValues.students = await getStudentsByCourse(c.id);
   c.dataValues.periods = [];
   for (const professor of professorsWithPeriods) {
-    const professorPeriods = professor.dataValues.periods.map(pp => ({ ...pp, professorId: professor.id }));
+    const professorPeriods = professor.dataValues.periods.map(pp => ({ ...pp, professorId: professor.id, professor }));
     c.dataValues.periods = [...c.dataValues.periods, ...professorPeriods];
 
   }
@@ -175,7 +175,9 @@ export const getAll = async (title, page = 1, size = 10) => {
   const findAllParams = { include: [
     student,
     { model: courseTask, include:[student] },
-  ]};
+  ],
+  distinct: true,
+  };
   if (title != undefined) {
     title = title.toLowerCase();
     findAllParams.where = { title: sequelize.where(sequelize.fn("LOWER", sequelize.col("course.title")), "LIKE", "%" + title + "%") };
@@ -185,9 +187,8 @@ export const getAll = async (title, page = 1, size = 10) => {
 
   let { count, rows } = await course.findAndCountAll(findAllParams);
   let courses = rows;
-  let professorCourses = professorCourse.findAll();
-  courses = await courses;
-  professorCourses = await professorCourses;
+  let coursesIds = courses.map(c => c.id);
+  let professorCourses = await professorCourse.findAll({ include: [professor], where: { courseId: {[Op.in]:coursesIds}}});
   courses.forEach(course => {
     course.dataValues.periods = professorCourses.filter(pc => pc.courseId == course.id);
   });
@@ -195,7 +196,7 @@ export const getAll = async (title, page = 1, size = 10) => {
     totalItems: count,
     totalPages: Math.ceil(count / size),
     currentPage: page,
-    courses,
+    data: courses,
   };
 };
 
@@ -232,7 +233,20 @@ export const getTasksByCourseId = async (courseId, specification) => {
 
 export const getCoursesTasksByTitle = async (title) => {
   return courseTask.findAll({
-    where: { title: sequelize.where(sequelize.fn("LOWER", sequelize.col("title")), "LIKE", "%" + title + "%") },
+    attributes: [
+      [sequelize.literal("DISTINCT ON (title) title"), "title"],
+      "id",
+      "comment",
+      "limit_date",
+    ],
+    where: {
+      title: sequelize.where(
+        sequelize.fn("LOWER", sequelize.col("title")),
+        "LIKE",
+        "%" + title.toLowerCase() + "%"
+      ),
+    },
+    order: [["title", "ASC"], ["limit_date", "DESC"]],
     limit: 10,
   });
 };

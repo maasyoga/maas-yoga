@@ -193,8 +193,32 @@ export const pendingPayments = async () => {
   return response;
 };
 
-export const getAll = async () => {
-  return student.findAll({ include: [course] });
+export const exists = async ({ field, value }) => {
+  const studentExists = await student.findOne({ where: { [field]: value } });
+  return studentExists !== null;
+};
+
+export const getAllLegacy = async () => {
+  return student.findAll();
+};
+
+export const getAll = async (page = 1, size = 10, specification) => {
+  const where = specification.getSequelizeSpecification();
+  const include = specification.getSequelizeSpecificationAssociations([course]);
+  const findAllParams = {
+    distinct: true,
+    include,
+    limit: size,
+    offset: (page - 1) * size,
+    where,
+  };
+  let { count, rows } = await student.findAndCountAll(findAllParams);
+  return {
+    totalItems: count,
+    totalPages: Math.ceil(count / size),
+    currentPage: page,
+    data: rows,
+  };
 };
 
 //TODO: optimizar estas consultas
@@ -208,6 +232,7 @@ export const getStudentsByCourse = async (courseId) => {
   const payments = await payment.findAll({ where: { courseId, studentId: {
     [Op.in]: studentsIds
   } } })
+  const getRegistrationPayment = (studentId) => payments.find(p => p.isRegistrationPayment && p.studentId == studentId);
   if (c.isCircular) {
     const getCircularPayment = (studentId) => payments.find(p => !p.isRegistrationPayment && p.studentId == studentId);
     for (const s of c.dataValues.students) {
@@ -233,7 +258,6 @@ export const getStudentsByCourse = async (courseId) => {
   courseEndAt.setSeconds(59);
   courseEndAt.setMilliseconds(999);
   const dateSeries = utils.getMonthlyDateSeries(courseStartAt, courseEndAt)
-  const getRegistrationPayment = (studentId) => payments.find(p => p.isRegistrationPayment && p.studentId == studentId);
   const getPaymentByYearAndMonthAndStudentId = (year, month, studentId) => {
     return payments.find(p => {
       if (p.isRegistrationPayment) {

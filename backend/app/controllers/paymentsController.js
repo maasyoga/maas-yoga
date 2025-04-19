@@ -2,6 +2,7 @@ import * as paymentService from "../services/paymentService.js";
 import { StatusCodes } from "http-status-codes";
 import Specification from "../models/Specification.js";
 import { payment } from "../db/index.js";
+import { getById } from "../services/studentService.js";
 
 export default {
   /**
@@ -11,6 +12,19 @@ export default {
   create: async (req, res, next) => {
     try {
       const createdPayment = await paymentService.create(req.body, req.user.id);
+      res.status(StatusCodes.CREATED).json(createdPayment);
+    } catch (e) {
+      next(e);
+    }
+  },
+
+  /**
+   * /payments/{id} [GET]
+   * @returns HttpStatus and @Payment
+   */
+  getById: async (req, res, next) => {
+    try {
+      const createdPayment = await paymentService.getById(req.params.id);
       res.status(StatusCodes.CREATED).json(createdPayment);
     } catch (e) {
       next(e);
@@ -96,12 +110,25 @@ export default {
   },
 
   /**
-   * /payments/secretary/latest [GET]
-   * @returns HttpStatus ok and @SecretaryPayment
+   * /payments/secretary [GET]
+   * @returns HttpStatus ok aray of @SecretaryPayment
    */
   getSecretaryPayments: async (req, res, next) => {
     try {
-      const secretaryPayment = await paymentService.getSecretaryPayments();
+      const secretaryPayments = await paymentService.getSecretaryPayments();
+      res.status(StatusCodes.OK).json(secretaryPayments);
+    } catch (e) {
+      next(e);
+    }
+  },
+
+  /**
+   * /payments/secretary/latest [GET]
+   * @returns HttpStatus ok and @SecretaryPayment
+   */
+  getLatestSecretaryPayment: async (req, res, next) => {
+    try {
+      const secretaryPayment = await paymentService.getLatestSecretaryPayment();
       res.status(StatusCodes.OK).json(secretaryPayment);
     } catch (e) {
       next(e);
@@ -153,10 +180,62 @@ export default {
    */
   getAll: async (req, res, next) => {
     try {
-      const querySpecification = req.query.q;
-      const isOrOperation = req.query.isOrOperation === 'true'
+      const { q, page, size } = req.query;
+      const querySpecification = q;
+      const isOrOperation = req.query.isOrOperation === "true";
       const specification = new Specification(querySpecification, payment, isOrOperation);
-      const payments = await paymentService.getAll(specification);
+      const payments = await paymentService.getAll(page, size, specification);
+      res.status(StatusCodes.OK).json(payments);
+    } catch (e) {
+      next(e);
+    }
+  },
+
+  /**
+   * /payments/verified [GET]
+   * @returns HttpStatus ok and array of @Payment
+   */
+  getAllVerified: async (req, res, next) => {
+    try {
+      const { q, page, size, all } = req.query;
+      const querySpecification = q;
+      const isOrOperation = req.query.isOrOperation === "true";
+      const specification = new Specification(querySpecification, payment, isOrOperation);
+      const payments = await paymentService.getAllVerified(page, size, specification, all);
+      res.status(StatusCodes.OK).json(payments);
+    } catch (e) {
+      next(e);
+    }
+  },
+
+  /**
+   * /payments/unverified [GET]
+   * @returns HttpStatus ok and array of @Payment
+   */
+  getAllUnverified: async (req, res, next) => {
+    try {
+      const { q, page, size, all } = req.query;
+      const querySpecification = q;
+      const isOrOperation = req.query.isOrOperation === "true";
+      const specification = new Specification(querySpecification, payment, isOrOperation);
+      const payments = await paymentService.getAllUnverified(page, size, specification, all);
+      res.status(StatusCodes.OK).json(payments);
+    } catch (e) {
+      next(e);
+    }
+  },
+
+  /**
+   * @deprecated Tenemos que borrar este endpoint cuando el frontend lo deje de usar. Consume muchos recursos.
+   * /payments [GET]
+   * @returns HttpStatus ok and array of @Payment
+   */
+  legacyGetAll: async (req, res, next) => {
+    try {
+      const querySpecification = req.query.q;
+      const isOrOperation = req.query.isOrOperation === "true";
+      const specification = new Specification(querySpecification, payment, isOrOperation);
+      const payments = await paymentService.legacyGetAll(specification);
       res.status(StatusCodes.OK).json(payments);
     } catch (e) {
       next(e);

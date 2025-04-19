@@ -32,6 +32,10 @@ import RedBudget from '../components/badget/red';
 import TaskList from '../components/list/taskList';
 import StudentCard from '../components/card/studentCard';
 import useToggle from '../hooks/useToggle';
+import SelectClass from '../components/select/selectClass';
+import SelectColleges from '../components/select/selectColleges';
+import SelectStudent from '../components/select/selectStudent';
+import SelectCourses from '../components/select/selectCourses';
 
 function Course({ course, student }) {
 	const [isOpen, setIsOpen] = useState(false);
@@ -83,7 +87,7 @@ function Course({ course, student }) {
 
 const CourseDetail = () => {
 	let { studentId } = useParams();
-	const { getStudentDetailsById, user, getStudentPayments, students, changeAlertStatusAndMessage, colleges, getPendingPaymentsByCourseFromStudent, clazzes, editPayment, getHeadquarterById, getItemById } = useContext(Context);
+	const { getStudentDetailsById, user, getStudentPayments, students, changeAlertStatusAndMessage, getPendingPaymentsByCourseFromStudent, editPayment } = useContext(Context);
 	const [student, setStudent] = useState(null)
 	const [studentPayments, setStudentPayments] = useState(null)
 	const [payment, setPayment] = useState(null)
@@ -116,16 +120,7 @@ const CourseDetail = () => {
     const [isSecretaryPayment, setIsSecretaryPayment] = useState(false)
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingPayment, setIsLoadingPayment] = useState(false);
-    const [dayOfMonth, setDayOfMonth] = useState(1); 
-    const [serviceModal, setServiceModal] = useState(false);
-    const [serviceNote, setServiceNote] = useState('');
-    const [showSt, setShowSt] = useState(false);
-    const [isEditingTemplate, setIsEditingTemplate] = useState(false);
-    const [serviceId, setServiceId] = useState(null);
-    const [serviceToDelete, setServiceToDelete] = useState('');
-    const [openPicker, data, authResponse] = useDrivePicker();
-	const [fileId, setFileId] = useState(null);
-    const [deleteServiceModal, setDeleteServiceModal] = useState(false);
+    const [openPicker] = useDrivePicker();
     const [driveFile, setDriveFile] = useState(null);
     const [studentCourses, setStudentCourses] = useState([]);
     const googleDriveEnabled = user !== null && "googleDriveCredentials" in user;
@@ -190,7 +185,6 @@ const CourseDetail = () => {
         setIsLoading(true);
         try {
             const response = await paymentsService.uploadFile(file);
-            setFileId(response.id);
             if(edit) {
                 setPaymentToEdit({...paymentToEdit, fileId: response.id})
             } 
@@ -263,7 +257,6 @@ const CourseDetail = () => {
         setAmmount(null);
         setSelectedCollege(null);
         setPaymentMethod(null);
-        setFileId(null);
         setSelectedCourse(null);
         setSelectedStudent(null);
         setSelectedClazz(null);
@@ -301,15 +294,11 @@ const CourseDetail = () => {
             handleChangeDiscount(payment.discount)
         }
         if(payment.clazzId) {
-            const classes = clazzes.filter(cls => cls.id === payment.clazzId);
+            const classes = payment.clazz
             setSelectedClazz((classes.length > 0) ? {label: classes[0].title, value: classes[0].id} : null);
         }
-        if(payment.headquarterId) {
-            const college = getHeadquarterById(payment.headquarterId);
-            setSelectedCollege(college !== undefined ? {label: college.name, value: college.id} : null);
-        }
         if (payment.itemId) {
-            const item = getItemById(payment.itemId);
+            const item = payment.item;
             setSelectedItem(item !== undefined ? item : null);
         }
         if(payment.value < 0) {
@@ -346,28 +335,21 @@ const CourseDetail = () => {
 	const setDisplay = (value) => {
         setOpenModal(value);
         setIsLoadingPayment(false);
-        setDeleteServiceModal(false);
         setIsDischarge(value);
-        setServiceModal(value);
         setEdit(value);
-        setServiceNote('');
         setPaymentAt(dayjs(new Date()));
         setOperativeResult(dayjs(new Date()));
         setDiscount("");
         discountCheckbox.disable();
         setAmmount(null);
         setSelectedStudent(null);
-        setIsEditingTemplate(false);
         setPaymentMethod(null);
         setSelectedCourse(null);
         setSelectedClazz(null);
         setSelectedClazz(null);
-        setServiceId(null);
         setStudentCourses([]);
-        setDayOfMonth(1);
         setSelectedCollege(null);
         setSelectedItem(null);
-        setServiceToDelete('');
         setHaveFile(false);
         setPaymentToEdit({});
     }
@@ -411,16 +393,10 @@ const CourseDetail = () => {
 
     const getOnlyStudentsOfSameCourse = () => {
         if ((selectedCourse == null) || (studentCourses.length > 0)) {
-            return students;
+            return null;
         }
-        return students.filter(st => st.courses.some(course => course.id == selectedCourse.id))
+        return selectedCourse.students
     }
-
-	useEffect(() => {
-	  console.log(studentPayments);
-	  
-	}, [studentPayments])
-	
 
 	return (
 		<Container disableTitle className="max-w-full" items={[{ name: "Alumnos", href: "/home/students" }, { name: `${student?.name || ''} ${student?.lastName || ''}` }]}>
@@ -461,24 +437,23 @@ const CourseDetail = () => {
         {!isDischarge && (<><div className="col-span-2 md:col-span-1">
                 <span className="block text-gray-700 text-sm font-bold mb-2">Seleccione la persona que realizó el pago</span>
                 <div className="mt-4">
-                    <Select
+                    <SelectStudent
                         onChange={handleChangeStudent}
                         options={getOnlyStudentsOfSameCourse()}
                         value={selectedStudent}
-                        getOptionLabel ={(student)=> `${student?.name} ${student?.lastName}`}
-                        getOptionValue ={(student)=> student.id}
-                    /></div>
+                    />
+                </div>
             </div>
             {(!selectedClazz && !selectedItem) && (<div className="col-span-2 md:col-span-1">
                 <span className="block text-gray-700 text-sm font-bold mb-2">Seleccione el curso que fue abonado</span>
                 <div className="mt-4">
-                    <Select
+                    <SelectCourses
                         onChange={setSelectedCourse}
-                        options={(studentCourses.length > 0) ? studentCourses : courses}
+                        value={selectedCourse}
+                        options={(studentCourses.length > 0) ? studentCourses : null}
                         defaultValue={selectedCourse}
-                        getOptionLabel ={(course)=> course.title}
-                        getOptionValue ={(course)=> course.id}
-                    /></div>
+                    />
+                </div>
             </div>)}
             <div className="col-span-2 pb-1">
                 <CustomCheckbox
@@ -596,10 +571,9 @@ const CourseDetail = () => {
                 <div className="col-span-2 md:col-span-2">
                     <span className="block text-gray-700 text-sm font-bold mb-2">Sede</span>
                     <div className="mt-4">
-                        <Select
+                        <SelectColleges
                             value={selectedCollege}
                             onChange={setSelectedCollege}
-                            options={colleges}
                             styles={{ menu: provided => ({ ...provided, zIndex: 2 }) }}
                         />
                     </div>
@@ -617,7 +591,12 @@ const CourseDetail = () => {
                 </div>)}
                 {(!selectedCourse && !selectedItem) && (<div className="col-span-2 md:col-span-2">
                     <span className="block text-gray-700 text-sm font-bold mb-2">Clase</span>
-                    <div className="mt-4"><Select onChange={setSelectedClazz} value={selectedClazz} options={clazzes.filter(clazz => !clazz.paymentsVerified)} /></div>
+                    <div className="mt-4">
+                        <SelectClass
+                            onChange={setSelectedClazz}
+                            value={selectedClazz}
+                        />
+                    </div>
                 </div>)}
             </>
             }

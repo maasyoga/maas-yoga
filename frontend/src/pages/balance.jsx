@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext } from "react";
+import React, { useState, useRef, useContext, useEffect } from "react";
 import Chart from "../components/chart";
 import ChartSelector from "../components/chartSelector";
 import ChartFilterModal from "../components/chart/chartFilterModal";
@@ -21,6 +21,10 @@ import SelectItem from "../components/select/selectItem";
 import CommonInput from "../components/commonInput";
 import CommonTextArea from "../components/commonTextArea";
 import Select from "../components/select/select";
+import SelectClass from "../components/select/selectClass";
+import SelectColleges from "../components/select/selectColleges";
+import SelectStudent from "../components/select/selectStudent";
+import SelectCourses from "../components/select/selectCourses";
 
 export default function Balance(props) {
 
@@ -59,7 +63,7 @@ export default function Balance(props) {
     const [driveFile, setDriveFile] = useState(null);
     const [paymentToEdit, setPaymentToEdit] = useState({});
     const [fileId, setFileId] = useState(null);
-    const { clazzes, getHeadquarterById, getItemById, user, changeAlertStatusAndMessage, colleges, editPayment, students, informPayment, courses } = useContext(Context);
+    const { user, changeAlertStatusAndMessage, editPayment, informPayment } = useContext(Context);
     const googleDriveEnabled = user !== null && "googleDriveCredentials" in user;
 
     const switchModal = () => setIsModalOpen(!isModalOpen);
@@ -77,9 +81,9 @@ export default function Balance(props) {
 
     const getOnlyStudentsOfSameCourse = () => {
         if ((selectedCourse == null) || (studentCourses.length > 0)) {
-            return students;
+            return null;
         }
-        return students.filter(st => st.courses.some(course => course.id == selectedCourse.id))
+        return selectedCourse.students
     }
 
     const handleChangeStudent = (st) => {
@@ -283,15 +287,11 @@ export default function Balance(props) {
             handleChangeDiscount(payment.discount)
         }
         if(payment.clazzId) {
-            const classes = clazzes.filter(cls => cls.id === payment.clazzId);
+            const classes = payment.clazz
             setSelectedClazz((classes.length > 0) ? {label: classes[0].title, value: classes[0].id} : null);
         }
-        if(payment.headquarterId) {
-            const college = getHeadquarterById(payment.headquarterId);
-            setSelectedCollege(college !== undefined ? {label: college.name, value: college.id} : null);
-        }
         if (payment.itemId) {
-            const item = getItemById(payment.itemId);
+            const item = payment.item
             setSelectedItem(item !== undefined ? item : null);
         }
         if(payment.value < 0) {
@@ -335,24 +335,23 @@ export default function Balance(props) {
         {!isDischarge && (<><div className="col-span-2 md:col-span-1">
                 <span className="block text-gray-700 text-sm font-bold mb-2">Seleccione la persona que realizó el pago</span>
                 <div className="mt-4">
-                    <Select
+                    <SelectStudent
                         onChange={handleChangeStudent}
                         options={getOnlyStudentsOfSameCourse()}
                         value={selectedStudent}
-                        getOptionLabel ={(student)=> `${student?.name} ${student?.lastName}`}
-                        getOptionValue ={(student)=> student.id}
-                    /></div>
+                    />
+                </div>
             </div>
             {(!selectedClazz && !selectedItem) && (<div className="col-span-2 md:col-span-1">
                 <span className="block text-gray-700 text-sm font-bold mb-2">Seleccione el curso que fue abonado</span>
                 <div className="mt-4">
-                    <Select
+                    <SelectCourses
                         onChange={setSelectedCourse}
-                        options={(studentCourses.length > 0) ? studentCourses : courses}
+                        value={selectedCourse}
+                        options={(studentCourses.length > 0) ? studentCourses : null}
                         defaultValue={selectedCourse}
-                        getOptionLabel ={(course)=> course.title}
-                        getOptionValue ={(course)=> course.id}
-                    /></div>
+                    />
+                </div>
             </div>)}
             <div className="col-span-2 pb-1">
                 <CustomCheckbox
@@ -470,10 +469,9 @@ export default function Balance(props) {
                 <div className="col-span-2 md:col-span-2">
                     <span className="block text-gray-700 text-sm font-bold mb-2">Sede</span>
                     <div className="mt-4">
-                        <Select
+                        <SelectColleges
                             value={selectedCollege}
                             onChange={setSelectedCollege}
-                            options={colleges}
                             styles={{ menu: provided => ({ ...provided, zIndex: 2 }) }}
                         />
                     </div>
@@ -491,7 +489,12 @@ export default function Balance(props) {
                 </div>)}
                 {(!selectedCourse && !selectedItem) && (<div className="col-span-2 md:col-span-2">
                     <span className="block text-gray-700 text-sm font-bold mb-2">Clase</span>
-                    <div className="mt-4"><Select onChange={setSelectedClazz} value={selectedClazz} options={clazzes.filter(clazz => !clazz.paymentsVerified)} /></div>
+                    <div className="mt-4">
+                        <SelectClass
+                            onChange={setSelectedClazz}
+                            value={selectedClazz}
+                        />
+                    </div>
                 </div>)}
             </>
             }

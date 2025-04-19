@@ -1,10 +1,11 @@
 import { StatusCodes } from "http-status-codes";
-import { payment, course, student, user, file, professor, secretaryPayment, servicePayment, item } from "../db/index.js";
+import { payment, course, student, user, file, professor, secretaryPayment, servicePayment, item, headquarter, clazz } from "../db/index.js";
 import * as logService from "./logService.js";
 import * as notificationService from "./notificationService.js";
-import { Op } from "sequelize";
+import { Op, col, cast, Sequelize } from "sequelize";
 import utils from "../utils/functions.js";
 
+const defaultPaymentInclude = [{ model: professor, attributes: ["name", "lastName"]},user, student, course, file, secretaryPayment, headquarter, item, clazz, student];
 /**
  * 
  * @param {Array||Payment} paymentParam 
@@ -46,7 +47,7 @@ export const create = async (paymentParam, informerId) => {
   };
   const createdPayments = await payment.bulkCreate(paymentParam);
   logService.logCreatedPayments(createdPayments);
-  return (createdPayments.length === 1) ? createdPayments[0] : createdPayments;
+  return (createdPayments.length === 1) ? getById(createdPayments[0].id) : createdPayments;
 };
 
 export const splitPayment = async (originalPaymentId, newPaymentParam) => {
@@ -123,7 +124,15 @@ export const addTodayPaymentServices = async () => {
 
 export const getSecretaryPayments = async () => {
   return secretaryPayment.findAll();
-}
+};
+
+export const getLatestSecretaryPayment = async () => {
+  const latestPayment = await secretaryPayment.findOne({
+    order: [["createdAt", "DESC"]]
+  });
+  return latestPayment;
+};
+
 
 export const deleteById = async (id, userId) => {
   const p = await payment.findByPk(id);
@@ -146,11 +155,154 @@ export const getAllByCourseId = async (courseId) => {
   return payment.findAll({ where: { courseId }, include: [user, student, course] });
 };
 
-export const getAll = async (specification) => {
+/**
+ * @deprecated
+ * @param {Object} specification 
+ * @returns 
+ */
+export const legacyGetAll = async (specification) => {
   return payment.findAll({
     where: specification.getSequelizeSpecification(),
-    include: specification.getSequelizeSpecificationAssociations([{ model: professor, attributes: ["name", "lastName"]},user, student, course, file])
+    include: specification.getSequelizeSpecificationAssociations([{ model: professor, attributes: ["name", "lastName"]},user, student, course, file, {
+      model: user,
+      as: "verifiedByUser",
+      attributes: ["firstName", "lastName"]
+    }])
   });
+};
+
+export const getAll = async (page = 1, size = 10, specification) => {
+  const where = specification.getSequelizeSpecification();
+  const include = specification.getSequelizeSpecificationAssociations(defaultPaymentInclude);
+  const findAllParams = {
+    include,
+    limit: size,
+    offset: (page - 1) * size,
+    where,
+    order: [
+      ["at", "DESC"]
+    ]
+  };
+  let { count, rows } = await payment.findAndCountAll(findAllParams);
+  const total = await payment.sum("value", { where });
+  const incomes = await payment.sum("value", { 
+    where: { ...where, value: { [Op.gte]: 0 } }
+  });
+  const expenses = await payment.sum("value", { 
+    where: { ...where, value: { [Op.lt]: 0 } }
+  });
+  return {
+    totalItems: count,
+    totalPages: Math.ceil(count / size),
+    currentPage: page,
+    data: rows,
+    total,
+    incomes,
+    expenses: expenses *-1,
+  };
+};
+
+/**
+ * TODO
+ * @param {int} page 
+ * @param {int} size 
+ * @param {Object} specification 
+ * @returns 
+ */
+export const getAllUnverified = async (page = 1, size = 10, specification, all) => {
+  const spec = specification.getSequelizeSpecification();
+  let where = getWhereForSearchPayment(spec, all, false);
+  const include = specification.getSequelizeSpecificationAssociations(defaultPaymentInclude);
+  const findAllParams = {
+    include,
+    limit: size,
+    offset: (page - 1) * size,
+    where,
+    order: [
+      ["at", "DESC"]
+    ]
+  };
+  let { count, rows } = await payment.findAndCountAll(findAllParams);
+  let total = 0;
+  let incomes = 0;
+  let expenses = 0;
+  try {
+    total = await payment.sum("value", { where });
+    incomes = await payment.sum("value", { 
+      where: { ...where, value: { [Op.gte]: 0 } }
+    });
+    expenses = await payment.sum("value", { 
+      where: { ...where, value: { [Op.lt]: 0 } }
+    });
+  } catch {
+    const paymentsToCount = await payment.findAll({
+      attributes: ["value"],
+      where,
+      include: [{ model: student, attributes: [] },{ model: professor, attributes: [] }, {model: user, attributes: []}],
+      raw: true
+    });
+    total = paymentsToCount.reduce((sum, p) => sum + p.value, 0);
+    incomes = paymentsToCount.reduce((sum, p) => (p.value > 0 ? sum + p.value : sum), 0);
+    expenses = paymentsToCount.reduce((sum, p) => (p.value < 0 ? sum + p.value : sum), 0);
+  }
+  
+  return {
+    totalItems: count,
+    totalPages: Math.ceil(count / size),
+    currentPage: page,
+    data: rows,
+    total,
+    incomes,
+    expenses: expenses *-1,
+  };
+};
+
+export const getAllVerified = async (page = 1, size = 10, specification, all) => {
+  const spec = specification.getSequelizeSpecification();
+  let where = getWhereForSearchPayment(spec, all, true);
+  const include = specification.getSequelizeSpecificationAssociations(defaultPaymentInclude);
+  const findAllParams = {
+    include,
+    limit: size,
+    offset: (page - 1) * size,
+    where,
+    order: [
+      ["at", "DESC"]
+    ]
+  };
+  let { count, rows } = await payment.findAndCountAll(findAllParams);
+  let total = 0;
+  let incomes = 0;
+  let expenses = 0;
+  try {
+    total = await payment.sum("value", { where });
+    incomes = await payment.sum("value", { 
+      where: { ...where, value: { [Op.gte]: 0 } }
+    });
+    expenses = await payment.sum("value", { 
+      where: { ...where, value: { [Op.lt]: 0 } }
+    });
+  } catch(e) {
+    const paymentsToCount = await payment.findAll({
+      attributes: ["value"],
+      where,
+      include: [{ model: item, attributes: [] },{ model: course, attributes: [] },{ model: student, attributes: [] },{ model: professor, attributes: [] }, {model: user, attributes: []}],
+      raw: true
+    });
+    total = paymentsToCount.reduce((sum, p) => sum + p.value, 0);
+    incomes = paymentsToCount.reduce((sum, p) => (p.value > 0 ? sum + p.value : sum), 0);
+    expenses = paymentsToCount.reduce((sum, p) => (p.value < 0 ? sum + p.value : sum), 0);
+  }
+  
+  return {
+    totalItems: count,
+    totalPages: Math.ceil(count / size),
+    currentPage: page,
+    data: rows,
+    total,
+    incomes,
+    expenses: expenses *-1,
+  };
 };
 
 export const updatePayment = async (id, data, userId) => {
@@ -158,7 +310,14 @@ export const updatePayment = async (id, data, userId) => {
     throw ({ statusCode: StatusCodes.BAD_REQUEST, message: "Can not change verified with this endpoint" });
   await payment.update(data, { where: { id } });
   logService.logUpdate(id, userId);
-  return payment.findByPk(id, { include: [user,student,course] });
+  return getById(id);
+};
+
+export const getById = async (id) => {
+  const p = await payment.findByPk(id, { include: defaultPaymentInclude });
+  if (p == null)
+    throw ({ statusCode: StatusCodes.NOT_FOUND, message: "payment not found" });
+  return p;
 };
 
 export const changeVerified = async (id, verified, verifiedBy) => {
@@ -170,4 +329,49 @@ export const changeVerified = async (id, verified, verifiedBy) => {
   else
     logService.logUpdate(id, verifiedBy);
   return payment.update(newData, { where: { id } });
+};
+
+const getWhereForSearchPayment = (spec, all, verified) => {
+  if (all != undefined) {
+    const iLike = "%"+all+"%";
+    return {
+      [Op.and]: [{ verified }, { [Op.or] : {
+        [Op.or] : [
+          { value: { [Op.eq]: all } },
+          { type: { [Op.iLike]: iLike } },
+          { note: { [Op.iLike]: iLike } },
+          { type: { [Op.iLike]: iLike } },
+          Sequelize.literal(`CONCAT("student"."name", ' ', "student"."last_name") ILIKE '${iLike}'`),
+          Sequelize.literal(`"item"."title" ILIKE '${iLike}'`),
+          Sequelize.literal(`"course"."title" ILIKE '${iLike}'`),
+          Sequelize.literal(`CONCAT("user"."first_name", ' ', "user"."last_name") ILIKE '${iLike}'`),
+          Sequelize.literal(`CONCAT("professor"."name", ' ', "professor"."last_name") ILIKE '${iLike}'`)
+        ]
+      }}]
+    };
+  }
+  if (spec.value !== undefined || (spec[Op.or] !== undefined && spec[Op.or].value !== undefined)) {
+    let obj = spec.value || spec[Op.or].value;
+    let value = obj[Op.like] || obj[Op.eq];
+    delete spec.value;
+    if (spec[Op.or] !== undefined)
+      delete spec[Op.or].value;
+    return {
+      [Op.and]: [{verified}, spec, 
+        Sequelize.where(
+          cast(col("value"), "TEXT"),
+          { [Op.like]: `%${value}%` }
+        )
+      ]
+    };
+  } else {
+    if (spec.note != undefined) {
+      const iLike = spec.note[Op.iLike];
+      spec.note = { [Op.or] : [Sequelize.literal(`"item"."title" ILIKE '${iLike}'`),
+        Sequelize.literal(`"course"."title" ILIKE '${iLike}'`)]};
+    }
+    return {
+      [Op.and]: [{verified}, spec]
+    };
+  }
 };

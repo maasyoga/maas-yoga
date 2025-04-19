@@ -1,7 +1,7 @@
 const PERMISSIONS = {
   CREATE_USER: "PERMISSION_CREATE_USER"
 };
-const APP_VERSION = "1.0.7";
+const APP_VERSION = "1.0.8";
 const PAYMENT_TYPES = {
   MERCADO_PAGO: "Mercado pago",
   PAYPAL: "Paypal",
@@ -42,7 +42,7 @@ const STUDENT_MONTHS_CONDITIONS = {
 // https://sequelize.org/docs/v6/core-concepts/model-querying-basics/
 const ALLOWED_SEQUELIZE_OPERATIONS = [
   "eq",
-  "nq",
+  "ne",
   "is",
   "not",
   "gt",
@@ -53,6 +53,7 @@ const ALLOWED_SEQUELIZE_OPERATIONS = [
   "notBetween",
   "in",
   "notIn",
+  "iLike",
   "like",
   "notLike",
   "startsWith",

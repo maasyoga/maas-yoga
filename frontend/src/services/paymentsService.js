@@ -154,11 +154,131 @@ export default {
                 })
         });
     },
-    getAllPayments() {
+    legacyGetAll() {
         return new Promise((resolve, reject) => {
             const baseUrl = process.env.REACT_APP_BACKEND_HOST;
             axios
-                .get(baseUrl + 'api/v1/payments', {})
+                .get(baseUrl + 'api/v1/payments/legacy', {})
+                .then((response) => {
+                    resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.data)
+                })
+        });
+    },
+    getAllPaymentsVerified(page, size, filters, isOrOperation) {
+        return new Promise((resolve, reject) => {            
+            let uri = `api/v1/payments/verified?page=${page}&size=${size}&isOrOperation=${isOrOperation}`
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            console.log(filters, 'ff');
+            
+            if (filters && Object.keys(filters).length > 0) {
+                const queryString = Object.keys(filters)
+                    .map(key => {
+                        if (key == 'all') return ''
+                        if (key == 'at' || key == 'operativeResult') {
+                            if (filters[key].value == null) return '';
+                            const startAt = new Date(filters[key].value.getTime());
+                            startAt.setHours(0, 0, 0, 0);
+                            const endAt = new Date(filters[key].value.getTime());
+                            endAt.setHours(23, 59, 59, 999);
+                            return `${key} between ${startAt.getTime()}:${endAt.getTime()}`
+                        } else {
+                            if (filters[key].operation == 'iLike')
+                                filters[key].value = '%'+filters[key].value+'%'
+                            return `${key} ${filters[key].operation} ${encodeURIComponent(filters[key].value)}`
+                        }
+                    })
+                    .join(';');
+                uri += `&q=${queryString}`;
+            }
+            if (filters != null && "all" in filters)
+                uri += "&all=" + filters.all;
+            axios
+                .get(baseUrl + uri, {})
+                .then((response) => {
+                    resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.data)
+                })
+        });
+    },
+    getAllPaymentsUnverified(page, size, filters, isOrOperation) {
+        return new Promise((resolve, reject) => {            
+            let uri = `api/v1/payments/unverified?page=${page}&size=${size}&isOrOperation=${isOrOperation}`
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            if (filters && Object.keys(filters).length > 0) {
+                const queryString = Object.keys(filters)
+                    .map(key => {
+                        if (key == 'all') return ''
+                        if (key == 'at' || key == 'operativeResult') {
+                            if (filters[key].value == null) return '';
+                            const startAt = new Date(filters[key].value.getTime());
+                            startAt.setHours(0, 0, 0, 0);
+                            const endAt = new Date(filters[key].value.getTime());
+                            endAt.setHours(23, 59, 59, 999);
+                            return `${key} between ${startAt.getTime()}:${endAt.getTime()}`
+                        } else {
+                            if (filters[key].operation == 'iLike')
+                                filters[key].value = '%'+filters[key].value+'%'
+                            return `${key} ${filters[key].operation} ${encodeURIComponent(filters[key].value)}`
+                        }
+                    })
+                    .join(';');
+                uri += `&q=${queryString}`;
+            }
+            if (filters != null && "all" in filters)
+                uri += "&all=" + filters.all;
+            axios
+                .get(baseUrl + uri, {})
+                .then((response) => {
+                    resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.data)
+                })
+        });
+    },
+    getAllPayments(page, size, filters) {
+        return new Promise((resolve, reject) => {            
+            let uri = `api/v1/payments?page=${page}&size=${size}`
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            if (filters && Object.keys(filters).length > 0) {
+                const queryString = Object.keys(filters)
+                    .map(key => {
+                        if (key == 'at' || key == 'operativeResult') {
+                            if (filters[key].value == null) return '';
+                            const startAt = new Date(filters[key].value.getTime());
+                            startAt.setHours(0, 0, 0, 0);
+                            const endAt = new Date(filters[key].value.getTime());
+                            endAt.setHours(23, 59, 59, 999);
+                            return `${key} between ${startAt.getTime()}:${endAt.getTime()}`
+                        } else {
+                            if (filters[key].operation == 'iLike')
+                                filters[key].value = '%'+filters[key].value+'%'
+                            return `${key} ${filters[key].operation} ${encodeURIComponent(filters[key].value)}`
+                        }
+                    })
+                    .join(';');
+                uri += `&q=${queryString}`;
+            }
+            axios
+                .get(baseUrl + uri, {})
+                .then((response) => {
+                    resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.data)
+                })
+        });
+    },
+    getLastSecretaryPayment() {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            axios
+                .get(baseUrl + 'api/v1/payments/secretary/lastest', {})
                 .then((response) => {
                     resolve(response.data);
                 })
@@ -186,7 +306,7 @@ export default {
             const baseUrl = process.env.REACT_APP_BACKEND_HOST;
             query = typeof query !== "string" ? query.join(SPECIFICATION_QUERY_SEPARATOR) : query;
             axios
-                .get(baseUrl + 'api/v1/payments?q=' + query, {})
+                .get(baseUrl + 'api/v1/payments/legacy?q=' + query, {})
                 .then((response) => {
                     resolve(response.data);
                 })
