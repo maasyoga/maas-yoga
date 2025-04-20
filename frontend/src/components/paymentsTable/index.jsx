@@ -12,9 +12,12 @@ import { Tooltip } from "@mui/material";
 import VerifyPaymentModal from "../modal/verifyPaymentModal";
 import useModal from "../../hooks/useModal";
 import DeletePaymentModal from "../modal/deletePaymentModal";
+import Spinner from "../spinner/spinner";
 
-export default function PaymentsTable({ columnsProps = [], dateField = "at", className = "", payments, defaultSearchValue, defaultTypeValue, isLoading, canVerify, editPayment, editMode, onClickDeletePayment, onClickVerifyPayment }) {
-    const { user, categories, changeAlertStatusAndMessage, getCourseById, getUserById, courses } = useContext(Context);
+export default function PaymentsTable({ summary = null, pageableProps = null, columnsProps = [], dateField = "at", className = "",
+    payments, defaultSearchValue, defaultTypeValue, isLoading, canVerify, editPayment, editMode, onClickDeletePayment, 
+    onClickVerifyPayment, onSwitchDischarges = () => console.log("no implementado"), onSwitchIncomes = () => console.log("no implementado") }) {
+    const { user, changeAlertStatusAndMessage, getUserById } = useContext(Context);
     const [payment, setPayment] = useState(null);
     const verifyPaymentModal = useModal()
     const deletePaymentModal = useModal()
@@ -112,7 +115,7 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
 
     const getVerifierUserFullName = (row) => {
         if (row.verifiedBy && row.verifiedBy !== undefined && row.verifiedBy !== null) {
-            const user = getUserById(row.verifiedBy)
+            const user = row.verifiedByUser
             return user.firstName + ' ' + user.lastName;
         } else {
             return row.verified ? "Verificado" : "No verificado"
@@ -151,12 +154,7 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
         let item = "";
         try {
             if(row.itemId !== null) {
-                try {
-                    const newItem = categories.find(category => category.items.find(item => item.id === row.itemId)).items.find(item => item.id === row.itemId);
-                    item = newItem.title;
-                }catch {
-                    item = "";
-                }
+                item = row.item.title
             }else {
                 if((row.student !== null) && (row.courseId !== null)) {
                     const course = row?.course
@@ -181,6 +179,8 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
     const columns = useMemo(() => {
         const defaultColumns = [
             {
+                serverProp: "id",
+                serverOperation: 'eq',
                 name: 'Identificador',
                 searchCriteria: TABLE_SEARCH_CRITERIA.EQUAL,
                 hidden: true,
@@ -191,6 +191,7 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
             },
             {
                 name: 'Fecha',
+                serverProp: showOpResultDate ? 'operativeResult' : 'at',
                 selector: row => showOpResultDate ? dateToString(row['operativeResult']) : dateToString(row['at']),
                 cell: row => <span>{showOpResultDate ? dateToString(row['operativeResult']) : dateToString(row['at'])}</span>,
                 sortable: true,
@@ -200,6 +201,8 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
                 sortFunction: dateSortFunction
             },
             {
+                serverProp: 'value',
+                serverOperation: 'like',
                 name: 'Importe',
                 cell: row => <span className={`${row.value >= 0 ? "text-blue-400" : "text-red-800"} whitespace-nowrap w-16 font-bold`}>{formatPaymentValue(row.value)}{row.discount && <span className="ml-1">{`(-${row.discount}%)`}</span>}</span>,
                 sortable: true,
@@ -208,6 +211,8 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
                 minWidth: '120px',
             },
             {
+                serverProp: 'type',
+                serverOperation: 'iLike',
                 name: 'Modo de pago',
                 cell: row => <span className={(row.value >= 0) ? "text-gray-800 font-bold" : "text-gray-800"}>{row.type}</span>,
                 sortable: true,
@@ -216,6 +221,8 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
             },
             {
                 name: 'Detalle',
+                serverProp: 'note',
+                serverOperation: 'iLike',
                 cell: row => <span className={(row.value >= 0) ? "text-gray-800 font-bold" : "text-gray-800"}>{getItemById(row)}</span>,
                 sortable: true,
                 searchable: true,
@@ -223,6 +230,8 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
             },
             {
                 name: 'Abonado por',
+                serverProp: 'student.name',
+                serverOperation: 'iLike',
                 cell: row => <span className={(row.value >= 0) ? "text-gray-800 font-bold" : "text-gray-800"}>{getStudentFullName(row)}</span>,
                 sortable: true,
                 searchable: true,
@@ -230,6 +239,8 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
             },
             {
                 name: 'Profesor',
+                serverProp: 'professor.name',
+                serverOperation: 'iLike',
                 cell: row => <span className={(row.value >= 0) ? "text-gray-800 font-bold" : "text-gray-800"}>{getProfessorFullName(row)}</span>,
                 sortable: true,
                 searchable: true,
@@ -237,6 +248,8 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
             },
             {
                 name: 'Informado por',
+                serverProp: 'user.firstName',
+                serverOperation: 'iLike',
                 cell: row => <span className={(row.value >= 0) ? "text-gray-800 font-bold" : "text-gray-800"}>{getUserFullName(row)}</span>,
                 sortable: true,
                 searchable: true,
@@ -246,7 +259,7 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
                 name: 'Verificado por',
                 cell: row => <span className={(row.value >= 0) ? "text-gray-800 font-bold" : "text-gray-800"}>{getVerifierUserFullName(row)}</span>,
                 sortable: true,
-                searchable: true,
+                searchable: false,
                 selector: row => getVerifierUserFullName(row),
             },
             {
@@ -295,7 +308,7 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
             }
         })
         return columns;
-    }, [categories, dateField, courses, showOpResultDate]); 
+    }, [dateField, showOpResultDate]); 
 
     useEffect(() => {
         setFilteredPayments(payments);
@@ -306,7 +319,7 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
     }, [])
 
     const updateTableSummary = payments =>  {
-        setTableSummary({
+        setTableSummary({// Si quien invoca el componente no pasa el parametro 'summary' entonces se calcula con el array de pagos
             total: getBalanceForAllPayments(payments),
             incomes: getPayments(payments),
             expenses: getDischarges(payments),
@@ -333,18 +346,36 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
         }
     }, [showIncomes])
 
+    let tableProps = {
+        className: `rounded-3xl shadow-lg ${className}`,
+        columns: columns,
+        paginationRowsPerPageOptions: [5, 10, 25, 50, 100],
+        noDataComponent: isLoading ? 'Verificando pagos...' : 'No hay pagos disponibles',
+        pagination: true,
+    }
+
+    if (pageableProps != null) {
+        tableProps = {
+            ...tableProps,
+            ...pageableProps,
+            serverPaginationData: payments,
+            paginationServer: true,
+            progressPending: isLoading,
+            progressComponent: <Spinner/>,
+        }
+    } else {
+        tableProps = {
+            ...tableProps,
+            onFilterData: (newFilteredPayments) => updateTableSummary(newFilteredPayments),
+            data: filteredPayments,
+            defaultSearchValue: defaultSearchValue,
+            defaultTypeValue: defaultTypeValue,
+        }
+    }
+    
     return(
         <>
-            <Table
-                defaultSearchValue={defaultSearchValue}
-                defaultTypeValue={defaultTypeValue}
-                className={`rounded-3xl shadow-lg ${className}`}
-                columns={columns}
-                onFilterData={(newFilteredPayments) => updateTableSummary(newFilteredPayments)}
-                data={filteredPayments}
-                noDataComponent={isLoading ? 'Verificando pagos...' : 'No hay pagos disponibles'}
-                pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
-            />
+            <Table {...tableProps} />
             <div className="flex flex-row my-4">
                 <CustomCheckbox
                     checked={showDischarges}
@@ -352,7 +383,7 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
                     labelOff="Mostrar egresos"
                     className="ml-2"
                     disabled={showIncomes}
-                    onChange={() => setShowDischarges(!showDischarges)}
+                    onChange={() => {onSwitchDischarges(!showDischarges);setShowDischarges(!showDischarges)}}
                 />
                 <CustomCheckbox
                     checked={showIncomes}
@@ -360,7 +391,7 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
                     labelOff="Mostrar ingresos"
                     className="ml-2"
                     disabled={showDischarges}
-                    onChange={() => setShowIncomes(!showIncomes)}
+                    onChange={() => {onSwitchIncomes(!showIncomes);setShowIncomes(!showIncomes)}}
                 />      
                 <CustomCheckbox
                     checked={showOpResultDate}
@@ -370,7 +401,7 @@ export default function PaymentsTable({ columnsProps = [], dateField = "at", cla
                     onChange={() => setShowOpResultDate(!showOpResultDate)}
                 /> 
             </div>
-            <TableSummary total={tableSummary.total} incomes={tableSummary.incomes} expenses={tableSummary.expenses}/>
+            <TableSummary total={summary != null ? summary.total : tableSummary.total} incomes={summary != null ? summary.incomes : tableSummary.incomes} expenses={summary != null ? summary.expenses : tableSummary.expenses}/>
             <DeletePaymentModal payment={payment} isOpen={deletePaymentModal.isOpen} onClose={handleOnCloseDeletePaymentModal}/>
             <VerifyPaymentModal payment={payment} isOpen={verifyPaymentModal.isOpen} onClose={handleOnCloseVerifyPaymentModal}/>
         </>

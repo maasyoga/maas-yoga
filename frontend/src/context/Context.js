@@ -11,11 +11,11 @@ import templatesService from "../services/templatesService";
 import categoriesService from "../services/categoriesService";
 import userService from "../services/userService";
 import { APP_VERSION, CASH_PAYMENT_TYPE, STUDENT_MONTHS_CONDITIONS } from "../constants";
-import logsService from "../services/logsService";
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { GoogleApiProvider } from 'react-gapi'
 import agendaService from "../services/agendaService";
 import { series } from "../utils";
+import useToggle from "../hooks/useToggle";
 
 export const Context = createContext();
 
@@ -29,15 +29,13 @@ export const Provider = ({ children }) => {
     const [isLoadingTasks, setIsLoadingTasks] = useState(true);
     const [services, setServices] = useState([]);
     const [users, setUsers] = useState([]);
-    const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
     const [payments, setPayments] = useState([]);
-    const [secretaryPayments, setSecretaryPayments] = useState([]);
-    const [alreadyAddedSecretaryPayments, setAlreadyAddedSecretaryPayments] = useState(false);
+    const [lastSecretaryPayment, setLastSecretaryPayment] = useState(null)
     const [isLoadingPayments, setIsLoadingPayments] = useState(true);
     const [clazzes, setClazzes] = useState([]);
     const [notifications, setNotifications] = useState([]);
+    const isLoadingCategories = useToggle()
     const [categories, setCategories] = useState([]);
-    const [isLoadingCategories, setIsLoadingCategories] = useState(true);
     const [items, setItems] = useState([]);
     const [user, setUser] = useState(null);
     const [isAlertActive, setIsAlertActive] = useState(false);
@@ -45,65 +43,80 @@ export const Provider = ({ children }) => {
     const [alertStatus, setAlertStatus] = useState('');
     const [professors, setProfessors] = useState([]);
     const [isLoadingProfessors, setIsLoadingProfessors] = useState(true);
-    const [logs, setLogs] = useState([]);
-    const [logsInit, setLogsInit] = useState(false);
     const [agendaLocations, setAgendaLocations] = useState([]);
 
-    const getStudents = async () => {
-        const studentsList = await studentsService.getStudents();
-        studentsList.forEach(student => {
-            student.label = student.name + ' ' + student.lastName;
-            student.value = student.id;
-        });
-        setStudents(studentsList);
-        setIsLoadingStudents(false);
+    const getClazzes = async () => {
+        if (clazzes.length > 0) return clazzes;
+        const data = await clazzesService.getClazzes();
+        setClazzes(data);
+        return data;
+    };
+
+    const getItems = async () => {
+        if (items.length > 0) return items;
+        const data = await categoriesService.getItems();
+        setItems(data);
+        return data;
     }
+
+    const getServices = async () => {
+        if (services.length > 0) return services;
+        const data = await templatesService.getServices();
+        setServices(data);
+        return data
+    }
+
+    const getCategories = async () => {
+        if (categories.length > 0) return categories;
+        isLoadingCategories.enable()
+        const data = await categoriesService.getCategories();
+        isLoadingCategories.disable()
+        setCategories(data);
+        return data;
+    }
+
+    const getProfessors = async () => {
+        if (professors.length > 0) return professors;
+        setIsLoadingProfessors(true)
+        const pfrs = await professorsService.getProfessors();
+        setProfessors(pfrs);
+        setIsLoadingProfessors(false);
+        return pfrs
+    }
+
+
+    const getAgendaLocations = async () => {
+        if (agendaLocations.length > 0) return agendaLocations;
+        const data = await agendaService.getLocations();
+        data.forEach(location => {
+            location.label = location.nombre;
+            location.value = location.id;
+        });
+        setAgendaLocations(data);
+        return data
+    }
+
+    const getTasks = async () => {
+        if (tasks.length > 0) return tasks;
+        setIsLoadingTasks(true)
+        const tasksList = await tasksService.getTasks();
+        setIsLoadingTasks(false)
+        setTasks(tasksList);
+        return tasksList
+    }
+
+    const getColleges = async (force = false) => {
+        if (force === false && colleges.length > 0) return colleges;
+        setIsLoadingColleges(true)
+        const data = await collegesService.getColleges();
+        setIsLoadingColleges(false)
+        setColleges(data);
+        return data;
+    };
 
     useEffect(() => {
         console.log("App running version=" + APP_VERSION);
         if (user === null) return;
-        const getTasks = async () => {
-            const tasksList = await tasksService.getTasks();
-            setTasks(tasksList);
-            setIsLoadingTasks(false);
-        }
-        const getColleges = async () => {
-            const collegesList = await collegesService.getColleges();
-            collegesList.forEach(college => {
-                college.label = college.name;
-                college.value = college.id;
-            });
-            setColleges(collegesList);
-            setIsLoadingColleges(false);
-        }
-        const getServices = async () => {
-            const services = await templatesService.getServices();
-            services.forEach(template => {
-                template.label = template.note;
-                template.value = template.value;
-            });
-            setServices(services);
-        }
-        const getClazzes = async () => {
-            const clazzes = await clazzesService.getClazzes();
-            clazzes.forEach(clazz => {
-                clazz.label = clazz.title;
-                clazz.value = clazz.id;
-            });
-            setClazzes(clazzes);
-        }
-        const getCategories = async () => {
-            const categories = await categoriesService.getCategories();
-            categories.forEach(category => {
-                category.label = category.title;
-                category.value = category.id;
-                category.items.forEach(item => {
-                    item.label = item.title;
-                    item.value = item.id;
-                });
-            });
-            setCategories(categories);
-        }
         const getUsers = async () => {
             try {
               const usersList = await userService.getUsers();
@@ -112,41 +125,16 @@ export const Provider = ({ children }) => {
               changeAlertStatusAndMessage(true, 'error', 'No fue posible obtener los usuarios... Por favor recarge la página.');
             }
         }
-        const getProffesors = async () => {
-            const pfrs = await professorsService.getProffesors();
-            pfrs.forEach(professor => {
-                professor.label = professor.name + " " + professor.lastName;
-                professor.value = professor.id;
-            })
-            setProfessors(pfrs);
-            setIsLoadingProfessors(false);
-        }
-        const getAgendaLocations = async () => {
-            const locations = await agendaService.getLocations();
-            locations.forEach(location => {
-                location.label = location.nombre;
-                location.value = location.id;
-            });
-            setAgendaLocations(locations);
-        }
         const getNotifications = async () => {
             const notifications = await notificationsService.getNotifications();
             setNotifications(notifications)
         }
         
         getNotifications();
-        
         getUsers();
-        getStudents();
-        getTasks();
-        getColleges();
-        getPayments();
-        getServices();
-        getClazzes();
-        getCategories();
-        getProffesors();
-        getAgendaLocations();
     }, [user]);
+
+    
 
     const removeNotification = async (notificationId) => {
         await notificationsService.removeById(notificationId)
@@ -158,53 +146,13 @@ export const Provider = ({ children }) => {
         setNotifications([])
     }
 
-    const getPayments = async () => {
-        const paymentsList = await paymentsService.getAllPayments();
-        const sortedList = paymentsList.sort((a, b) => {
-            const dateA = new Date(a.at);
-            const dateB = new Date(b.at);
-            return dateB - dateA;
-        });
-        setPayments(sortedList);
-        setIsLoadingPayments(false);
-    }
-
     const getStudentPayments = async (studentId) => {
         return paymentsService.getStudentPayments(studentId);
     }
 
-    const addSecretaryPaymentsToPayments = async () => {
-        const secretaryPayments = await paymentsService.getSecretaryPayments();
-        setSecretaryPayments(secretaryPayments);
-        setPayments(prev => prev.map(payment => {
-            if ("secretaryPaymentId" in payment && payment.secretaryPaymentId != null) {
-                payment.secretaryPayment = secretaryPayments.find(sp => sp.id == payment.secretaryPaymentId)
-            }
-            return payment;
-        }))
-    }
-
-    useEffect(() => {
-        if (isLoadingPayments || alreadyAddedSecretaryPayments) return
-        addSecretaryPaymentsToPayments()
-        setAlreadyAddedSecretaryPayments(true)
-    }, [payments, isLoadingPayments, alreadyAddedSecretaryPayments])
-    
-
     const getAgendaCashValues = async (year, month, location) => {
         return agendaService.getCash(year, month, location);
     }
-
-    useEffect(() => {
-        const formatedItems = [];
-        categories.forEach(category => category.items.forEach(item => {
-            item.categoryTitle = category.title;
-            item.value = item.id;
-            item.label = item.title;
-            formatedItems.push(item);
-        }));
-        setItems(formatedItems);
-    }, [categories]);
 
     const merge = (item1, item2) => {
         for (let key in item1) {
@@ -214,33 +162,11 @@ export const Provider = ({ children }) => {
         return JSON.parse(JSON.stringify(item1));
     }
 
-    const getStudentById = studentId => students.find(student => student.id == studentId);
-    const getHeadquarterById = headquarterId => colleges.find(headquarter => headquarter.id == headquarterId);
-    const getItemById = itemId => categories.find(category => category.items.find(item => item.id == itemId)).items.find(item => item.id == itemId);
     const getUserById = userId => users.find(user => user.id == userId);
-    const getSecretaryPaymentById = spId => secretaryPayments.find(sp => sp.id == spId);
-    const getProfessorById = professorId => professors.find(professor => professor.id == professorId);
 
-    const getProfessorDetailsById = async (professorId, force = false) => {
-        const localProfessor = getProfessorById(professorId);
-        if (localProfessor) {
-            if (force === false && ("courses" in localProfessor)) {
-                return localProfessor;
-            }
-            const professor = await professorsService.getProfessor(professorId);
-            setProfessors(prev => prev.map(p => {
-                if (p.id === professorId) {
-                    return professor;
-                } else {
-                    return p;
-                }
-            }))
-            return professor;
-        } else {
-            const professor = await professorsService.getProfessor(professorId);
-            setProfessors(prev => [...professors, professor]);
-            return professor;
-        }
+    const getProfessorDetailsById = async (professorId) => {
+        const professor = await professorsService.getProfessor(professorId);
+        return professor;
     }
 
     const getCourseDetailsById = async (courseId) => {
@@ -252,25 +178,7 @@ export const Provider = ({ children }) => {
     }
 
     const getStudentDetailsById = async studentId => {
-        const localStudent = getStudentById(studentId);
-        if (localStudent) {
-            if ("courseTasks" in localStudent) {
-                return localStudent;
-            }
-            const student = await studentsService.getStudent(studentId);
-            setStudents(prev => prev.map(s => {
-                if (s.id === studentId) {
-                    return student;
-                } else {
-                    return s;
-                }
-            }))
-            return student;
-        } else {
-            const student = await studentsService.getStudent(studentId);
-            setStudents(prev => [...students, student]);
-            return student;
-        }
+        return studentsService.getStudent(studentId);
     }
 
     const newProfessorPayment = async (professorId, courseId, periodFrom, periodTo, value) => {
@@ -300,14 +208,6 @@ export const Provider = ({ children }) => {
             const createdPayment = await paymentsService.informPayment(payment);
             changeAlertStatusAndMessage(true, 'success', 'El movimiento fue informado exitosamente!')
             createdPayment.user = user;
-            if (createdPayment.courseId !== null)
-                createdPayment.course = await getCourseDetailsById(createdPayment.courseId);
-            if (createdPayment.studentId)
-                createdPayment.student = getStudentById(createdPayment.studentId);
-            if (createdPayment.headquarterId)
-                createdPayment.headquarter = getHeadquarterById(createdPayment.headquarterId);
-            if (createdPayment.itemId)
-                createdPayment.item = getItemById(createdPayment.itemId);
             setPayments(current => [...current, createdPayment]);
             return createdPayment;
         } catch(e) {
@@ -320,33 +220,11 @@ export const Provider = ({ children }) => {
             const editedPayment = await paymentsService.editPayment(payment);
             changeAlertStatusAndMessage(true, 'success', 'El movimiento fue editado exitosamente!')
             editedPayment.user = user;
-            if (editedPayment.courseId !== null)
-                editedPayment.course = await getCourseDetailsById(editedPayment.courseId);
-            if (editedPayment.studentId)
-                editedPayment.student = getStudentById(editedPayment.studentId);
-            if (editedPayment.headquarterId)
-                editedPayment.headquarter = getHeadquarterById(editedPayment.headquarterId);
-            if (editedPayment.itemId)
-                editedPayment.item = getItemById(editedPayment.itemId);
-            console.log(editedPayment);
             setPayments(current => current.map(p => p.id === payment.id ? merge(p, editedPayment) : p));
         } catch(e) {
             changeAlertStatusAndMessage(true, 'error', 'El movimiento no pudo ser editado... Por favor inténtelo nuevamente.');
         }
     };
-
-    const getLogs = async () => {
-        if (!logsInit) {
-            const l = await logsService.getAll();
-            l.forEach(log => {
-                log.user = getUserById(log.userId);
-            })
-            setLogs(l);
-            return l;
-        } else {
-            return logs;
-        }
-    }
 
     const verifyPayment = async (paymentId, paymentData) => {
         const veryfiedPayment = await paymentsService.verifyPayment(paymentId);
@@ -366,7 +244,6 @@ export const Provider = ({ children }) => {
 
     const splitPayment = async (paymentData, paymentId) => {
         await paymentsService.splitPayment(paymentData, paymentId)
-        await getPayments()
     }
 
     const deletePayment = async (id) => {
@@ -406,8 +283,10 @@ export const Provider = ({ children }) => {
         changeAlertStatusAndMessage(true, 'success', 'La sede fue creada exitosamente!')
         createdCollege.label = createdCollege.name;
         createdCollege.value = createdCollege.id;
-        setColleges(current => [...current, createdCollege]);
-        return createdCollege;
+        const newColleges = JSON.parse(JSON.stringify(colleges))
+        newColleges.push(createdCollege)
+        setColleges(newColleges);
+        return newColleges;
     }
 
     const newProfessor = async (professor) => {
@@ -675,17 +554,6 @@ export const Provider = ({ children }) => {
         changeAlertStatusAndMessage(true, 'success', 'Fecha actualizada')
     }
 
-    const getService = async serviceId => {
-        const localService = services.find(t => t.id === serviceId);;
-        if (localService && "content" in localService)
-            return localService;
-        const service = await templatesService.getTemplate(serviceId);
-        service.label = service.title;
-        service.value = service.id;
-        setServices(current => current.map(t => t.id === serviceId ? service : t));
-        return service;
-    }
-
     const newService = async service => {
         const createdService = await templatesService.newService(service);
         changeAlertStatusAndMessage(true, 'success', 'El servicio fue creado exitosamente!')
@@ -745,12 +613,8 @@ export const Provider = ({ children }) => {
             d.professorsNames = d.professors.map(p => p.name);
             d.professors.forEach(professor => {
                 professor.result.payments.forEach(payment => {
-                    if (payment.studentId)
-                        payment.student = getStudentById(payment.studentId);
-                    if (payment.headquarterId)
-                        payment.headquarter = getHeadquarterById(payment.headquarterId);
-                    if (payment.itemId)
-                        payment.item = getItemById(payment.itemId);
+                    //if (payment.studentId) TODO: ver esto si rompe algo
+                        //payment.student = getStudentById(payment.studentId);
                     if (payment.userId)
                         payment.user = getUserById(payment.userId);
                 });
@@ -786,41 +650,32 @@ export const Provider = ({ children }) => {
         setIsLoadingCourses(false)
     }
 
-    const getSecretaryPaymentDetail = () => {
-        return secretaryPayments.reduce((max, current) => {
-            if (current.createdAt > max.createdAt) {
-              return current;
-            } else {
-              return max;
-            }
-        }, secretaryPayments[0]);
+    const getSecretaryPaymentDetail = async () => {
+        if (lastSecretaryPayment) return lastSecretaryPayment;
+        const last = await paymentsService.getLastSecretaryPayment();
+        setLastSecretaryPayment(last);
+        return last;
     }
 
 
     return (
         <Context.Provider value={{
-            agendaLocations,
+            getAgendaLocations,
             getAgendaCashValues,
-            colleges,
             students,
-            tasks,
             payments,
             services,
-            clazzes,
-            categories,
+            getClazzes,
             suspendStudentFromCourse,
             deleteSuspension,
             getSecretaryPaymentDetail,
             finishSuspend,
-            items,
             isLoadingColleges,
             isLoadingCourses,
             isLoadingPayments,
             isLoadingProfessors,
             isLoadingStudents,
             isLoadingTasks,
-            isLoadingTemplates,
-            isLoadingCategories,
             isAlertActive,
             alertMessage,
             alertStatus,
@@ -835,7 +690,6 @@ export const Provider = ({ children }) => {
             newClazz,
             newUser,
             deleteUser,
-            getSecretaryPaymentById,
             deleteStudent,
             editStudent,
             newStudent,
@@ -852,26 +706,27 @@ export const Provider = ({ children }) => {
             changeTaskStatus,
             newService,
             editUser,
-            getService,
             editService,
             deleteService,
             getCourseDetailsById,
             editClazz,
             deleteClazz,
             deleteCategory,
-            getStudents,
             editCategory,
             newCategory,
             verifyClazz,
             getStudentsByCourse,
+            getCategories,
+            isLoadingCategories: isLoadingCategories.value,
             getProfessorDetailsById,
             getStudentDetailsById,
             deleteCourseTask,
             getUserById,
+            getProfessors,
+            getTasks,
             getPendingPaymentsByCourseFromStudent,
             newProfessorPayment,
             editPayment,
-            professors,
             newProfessor,
             deleteProfessor,
             editProfessor,
@@ -880,11 +735,10 @@ export const Provider = ({ children }) => {
             changeAlertStatusAndMessage,
             calcProfessorsPayments,
             updatePayment,
-            getHeadquarterById,
-            getItemById,
+            getColleges,
             getStudentPayments,
-            getLogs,
-            getProfessorById,
+            getServices,
+            getItems,
             user,
             getPendingPayments,
             splitPayment,

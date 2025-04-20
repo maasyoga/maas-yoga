@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import DataTable from "react-data-table-component";
 import SearchBar from "./searchBar";
 import { TABLE_SEARCH_CRITERIA } from "../../constants";
@@ -8,16 +8,18 @@ export default function Table({ serverPaginationData, handleCustomSearchValue, o
     const [searchValue, setSearchValue] = useState(defaultSearchValue !== undefined ? defaultSearchValue : "");
     const [typeValue, setTypeValue] = useState(defaultTypeValue !== undefined ? defaultTypeValue : searchableColumns[0]?.name);
     const [dataFiltered, setDataFiltered] = useState(data);
+    const effectCalls = useRef(0)
 
     const getCurrentFilteringColumn = () => columns.filter(column => column.name === typeValue)[0];
     
 
     useEffect(() => {
         if (searchValue !== "") {
+            
             const currentFilteringColumn = getCurrentFilteringColumn();
             const byAllFields = currentFilteringColumn === undefined;
             if (handleCustomSearchValue != undefined) {
-                handleCustomSearchValue({ searchValue, byAllFields, field: currentFilteringColumn?.name })
+                handleCustomSearchValue({ searchValue, byAllFields, field: currentFilteringColumn?.name, serverProp: currentFilteringColumn?.serverProp, serverOperation: currentFilteringColumn?.serverOperation || 'eq', columns })
                 return
             }
             if (byAllFields) {
@@ -59,6 +61,16 @@ export default function Table({ serverPaginationData, handleCustomSearchValue, o
                 }));
             }
         } else {
+            if (handleCustomSearchValue != undefined) {
+                if (effectCalls.current > 1) {
+                    const currentFilteringColumn = getCurrentFilteringColumn();
+                    const byAllFields = currentFilteringColumn === undefined;
+                    handleCustomSearchValue({ searchValue: '', byAllFields, field: currentFilteringColumn?.name, serverProp: currentFilteringColumn?.serverProp, serverOperation: currentFilteringColumn?.serverOperation || 'eq', columns })
+                } else {
+                    effectCalls.current++ 
+                }
+                return
+            }
             setDataFiltered(data);
         }
     }, [data, searchValue, typeValue, searchableColumns]);
@@ -76,7 +88,7 @@ export default function Table({ serverPaginationData, handleCustomSearchValue, o
         <div>
             {searchableColumns.length > 0 && <SearchBar
                 searchValue={searchValue}
-                onChangeSearch={setSearchValue}
+                onChangeSearch={(value) => setSearchValue(value)}
                 typeValue={typeValue}
                 onChangeType={setTypeValue}
                 searchableColumns={searchableColumns}
