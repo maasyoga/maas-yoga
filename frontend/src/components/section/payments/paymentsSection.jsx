@@ -17,7 +17,7 @@ import StorageIconButton from "../../button/storageIconButton";
 import { useRef } from "react";
 import useDrivePicker from 'react-google-drive-picker'
 import useToggle from "../../../hooks/useToggle";
-import { betweenZeroAnd100, fromDDMMYYYYStringToDate } from "../../../utils";
+import { betweenZeroAnd100, fromDDMMYYYYStringToDate, getTimestampsFromMonthYear } from "../../../utils";
 import CustomCheckbox from "../../../components/checkbox/customCheckbox";
 import Select from "../../select/select";
 import SelectClass from "../../select/selectClass";
@@ -28,7 +28,6 @@ import SelectCourses from "../../select/selectCourses";
 import SelectStudent from "../../select/selectStudent";
 
 export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }) {
-
     const [file, setFile] = useState([]);
     const [haveFile, setHaveFile] = useState(false);
     const [fileName, setFilename] = useState("");
@@ -101,13 +100,25 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
             delete params.isOrOperation;
         }
         if (params) {
-            if ("at" in params)
-                params.at.value = fromDDMMYYYYStringToDate(params.at.value);
-            if ('operativeResult' in params)
-                params.operativeResult.value = fromDDMMYYYYStringToDate(params.operativeResult.value);
+            if ("at" in params) {
+                const parsedDate = fromDDMMYYYYStringToDate(params.at.value);
+                if (parsedDate == null) {
+                    params.at.value = `at between ${getTimestampsFromMonthYear(params.at.value)}`
+                } else {
+                    params.at.value = parsedDate;
+                }
+            }
+            if ('operativeResult' in params) {
+                const parsedDate = fromDDMMYYYYStringToDate(params.operativeResult.value);
+                if (parsedDate == null) {
+                    params.operativeResult.value = `operativeResult between ${getTimestampsFromMonthYear(params.operativeResult.value)}`
+                } else {
+                    params.operativeResult.value = parsedDate;
+                }
+            }
         }
         if (defaultTypeValue) {
-            if (params === undefined) {
+            if (params === undefined || params === null) {
                 params = {}
             }
             params[defaultTypeValue] = {
@@ -341,7 +352,7 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
             fileId: edit ? paymentToEdit.fileId : fileId,
             value: edit ? getValue() : (isDischarge ? (ammount * -1).toFixed(3) : ammount),
             studentId: (edit && selectedStudent !== null) ? selectedStudent.id : (isDischarge ? null : selectedStudent.id),
-            professorId: selectedProfessor !== null ? selectedProfessor.id : null,
+            professorId: selectedProfessor !== null ? selectedProfessor.id : (edit && paymentToEdit?.professorId !== null ? paymentToEdit.professorId : null),
             note: note,
             at: edit ? paymentAt : paymentAt.$d.getTime(),
             operativeResult: edit ? operativeResult : operativeResult.$d.getTime(),
