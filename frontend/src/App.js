@@ -1,0 +1,32 @@
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Banner from "./pages/banner";
+import Home from "./pages/home";
+
+import './input.css';
+
+export default function App() {
+  return (
+      <Router>
+        <Routes>
+          <Route path="/" element={<Banner />} />
+          <Route path="/home" element={<Home payments />} />
+          <Route path="/home/payments" element={<Home payments />} />
+          <Route path="/home/new-user" element={<Home newUser />} />
+          <Route path="/home/tasks" element={<Home tasks />} />
+          <Route path="/home/balance" element={<Home balance />} />
+          <Route path="/home/classes" element={<Home classes />} />
+          <Route path="/home/courses" element={<Home courses />} />
+          <Route path="/home/courses/:courseId" element={<Home courseDetail />} />
+          <Route path="/home/students/:studentId" element={<Home studentDetail />} />
+          <Route path="/home/students" element={<Home students />} />
+          <Route path="/home/colleges" element={<Home colleges />} />
+          <Route path="/home/categories" element={<Home categories />} />
+          <Route path="/home/imports" element={<Home imports />} />
+          <Route path="/home/diary" element={<Home diary />} />
+          <Route path="/home/professors" element={<Home professors />} />
+          <Route path="/home/professors/:professorId" element={<Home professorDetail />} />
+          <Route path="/home/professor-payments" element={<Home professorPayments />} />
+        </Routes>
+      </Router>
+  );
+}
