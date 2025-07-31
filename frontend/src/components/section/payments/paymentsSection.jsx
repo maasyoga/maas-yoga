@@ -31,7 +31,7 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
     const [file, setFile] = useState([]);
     const [haveFile, setHaveFile] = useState(false);
     const [fileName, setFilename] = useState("");
-    const { user, informPayment, changeAlertStatusAndMessage, editPayment, getSecretaryPaymentDetail } = useContext(Context);
+    const { user, informPayment, changeAlertStatusAndMessage, editPayment, getSecretaryPaymentDetail, generateReceipt } = useContext(Context);
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [secretaryPaymentValues, setSecretaryPaymentValues] = useState(null)
     const [selectedCourse, setSelectedCourse] = useState(null);
@@ -45,6 +45,7 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
     const [fileId, setFileId] = useState(null);
     const [selectedProfessor, setSelectedProfessor] = useState(null);
     const [ammount, setAmmount] = useState(null);
+    const [addReceipt, setAddReceipt] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState(null);
     const [note, setNote] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -341,6 +342,30 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
         }
     }
 
+    const downloadReceipt = async (paymentId) => {
+        try {
+            const blob = await generateReceipt(paymentId);
+            setAddReceipt(false);
+            console.log(blob, 'blob');
+            
+    
+            if (!blob) throw new Error('Blob indefinido');
+    
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            console.log(link, 'link', url, 'url');
+            
+            link.download = `recibo-${paymentId}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error al descargar el recibo:', error);
+        }
+    };
+
     const handleInformPayment = async () => {        
         setIsLoadingPayment(true);
         const data = {
@@ -367,9 +392,15 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
         try{
             if(edit) {
                 data.id = paymentToEdit.id;
+                if(addReceipt) {
+                    await downloadReceipt(data.id);
+                }
                 await editPayment(data);
             }else {
-                await informPayment(data);
+                const savedPayment = await informPayment(data);
+                if(addReceipt) {
+                    await downloadReceipt(savedPayment.id);
+                }
             }
             setIsLoadingPayment(false);
             setIsDischarge(false);
@@ -638,6 +669,14 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
                 <span className="block text-gray-700 text-sm font-bold mb-2">Modo de pago</span>
                 <div className="mt-2"><Select onChange={handleChangePayments} defaultValue={edit ? paymentMethod : {}} options={PAYMENT_OPTIONS} /></div>
             </div>
+            {(paymentMethod === 'Efectivo') && (selectedCourse.id) && <div className="col-span-2 md:col-span-1 pb-1">
+                <CustomCheckbox
+                    label="Generar recibo"
+                    name="addReceipt"
+                    checked={addReceipt}
+                    onChange={setAddReceipt}
+                />
+            </div>}
                 <div className="col-span-2 md:col-span-2">
                     <span className="block text-gray-700 text-sm font-bold mb-2">Sede</span>
                     <div className="mt-4">
@@ -723,9 +762,8 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
         </>
         :
         (<><span className="block text-gray-700 text-sm font-bold mb-2">Nombre del archivo: {fileName}</span><div className="flex flex-rox gap-4"><button onClick={() => uploadFile(file)} className={`${driveFile !== null && "none"} mt-6 bg-orange-300 w-40 h-auto rounded-lg py-2 px-3 text-center shadow-lg flex justify-center items-center text-white hover:bg-orange-550`}>{isLoading ? (<><i className="fa fa-circle-o-notch fa-spin mr-2"></i><span>Subiendo...</span></>) : <span>Subir archivo</span>}</button><button onClick={() => deleteSelection()} className="mt-6 bg-orange-300 w-40 h-auto rounded-lg py-2 px-3 text-center shadow-lg flex justify-center items-center text-white hover:bg-orange-550">Eliminar selección</button></div></>)}
-        </>} />
-        
-        
+        </>} 
+        />
 
         <ServicesCard/>
 
