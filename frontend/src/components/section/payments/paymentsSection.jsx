@@ -672,7 +672,7 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
                 <span className="block text-gray-700 text-sm font-bold mb-2">Modo de pago</span>
                 <div className="mt-2"><Select onChange={handleChangePayments} defaultValue={edit ? paymentMethod : {}} options={PAYMENT_OPTIONS} /></div>
             </div>
-            {(paymentMethod === 'Efectivo') && (selectedCourse.id) && <div className="col-span-2 pb-1">
+            {(paymentMethod === 'Efectivo') && (selectedCourse?.id) && <div className="col-span-2 pb-1">
                 <CustomCheckbox
                     label="Generar recibo"
                     name="addReceipt"
