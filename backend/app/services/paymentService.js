@@ -58,7 +58,7 @@ export const create = async (paymentParam, informerId, sendEmail = false) => {
     try {
       for (const createdPayment of createdPayments) {
         try {
-          await sendReceiptByEmail(createdPayment.id, informerId);
+          await sendReceiptByEmail(createdPayment.id);
         } catch (error) {
           console.error(`Error enviando recibo por email para pago ${createdPayment.id}:`, error);
           // No lanzamos el error para no interrumpir el flujo principal
@@ -341,7 +341,7 @@ export const getById = async (id) => {
   return p;
 };
 
-export const getReceipt = async (paymentId, { firstName, lastName }) => {
+export const getReceipt = async (paymentId) => {
   const payment = await getById(paymentId);
   const date = utils.dateToDDMMYYYY(new Date(payment.at));
   let price = payment.value;
@@ -438,9 +438,8 @@ const getWhereForSearchPayment = (spec, all, verified) => {
 /**
  * Envía el recibo de pago por email al estudiante
  * @param {number} paymentId - ID del pago
- * @param {number} informerId - ID del usuario que informó el pago
  */
-const sendReceiptByEmail = async (paymentId, informerId) => {
+const sendReceiptByEmail = async (paymentId) => {
   try {
     // Obtener el pago con toda la información necesaria
     const paymentData = await getById(paymentId);
@@ -448,13 +447,6 @@ const sendReceiptByEmail = async (paymentId, informerId) => {
     // Verificar que el estudiante tenga email
     if (!paymentData.student?.email) {
       console.log(`Estudiante ${paymentData.student?.id} no tiene email configurado`);
-      return;
-    }
-    
-    // Obtener información del usuario que informó el pago
-    const informerUser = await user.findByPk(informerId);
-    if (!informerUser) {
-      console.log(`Usuario informador ${informerId} no encontrado`);
       return;
     }
     
