@@ -233,7 +233,7 @@ export const Provider = ({ children }) => {
         }))));
     }
 
-     const informPayment = async (payment, sendReceipt) => {
+    const informPayment = async (payment, sendReceipt) => {
         try {
             const createdPayment = await paymentsService.informPayment(payment, sendReceipt);
             changeAlertStatusAndMessage(true, 'success', 'El movimiento fue informado exitosamente!')
