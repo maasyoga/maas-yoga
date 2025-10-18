@@ -46,11 +46,24 @@ export default {
                 })
         });
     },
-    informPayment(paymentInfo) {
+    generateReceipt(paymentId) {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            axios
+                .get(baseUrl + `api/v1/payments/${paymentId}/receipt`, {})
+                .then((response) => {
+                    resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.data)
+                })
+        });
+    },
+    informPayment(paymentInfo, sendReceipt) {
         return new Promise((resolve, reject) => {
             const baseUrl = process.env.REACT_APP_BACKEND_HOST;  
             axios
-                .post(baseUrl + `api/v1/payments`, paymentInfo, {})
+                .post(baseUrl + `api/v1/payments${sendReceipt ? '?sendEmail=true' : ''}`, paymentInfo, {})
                 .then((response) => {
                     resolve(response.data);
                 })

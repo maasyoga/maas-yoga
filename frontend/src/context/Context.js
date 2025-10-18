@@ -114,6 +114,36 @@ export const Provider = ({ children }) => {
         return data;
     };
 
+    const generateReceipt = async (paymentId) => {
+        try {
+            const token = localStorage.getItem('accessToken');
+            const response = await fetch(`${process.env.REACT_APP_BACKEND_HOST}api/v1/payments/${paymentId}/receipt`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+    
+            const arrayBuffer = await response.arrayBuffer();
+            const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+    
+            if (!(blob instanceof Blob)) {
+                throw new Error('No se generó un Blob válido');
+            }
+    
+            console.log(response, 'response', blob, 'blob', arrayBuffer, 'arrayBuffer');
+            
+            return blob;
+        } catch (error) {
+            changeAlertStatusAndMessage(
+                true,
+                'error',
+                'No fue posible generar el recibo... Por favor inténtelo nuevamente.'
+            );
+            console.error('Error en generateReceipt:', error);
+            return null; // 👈 IMPORTANTE: devolvé algo si ocurre error
+        }
+    };
+
     useEffect(() => {
         console.log("App running version=" + APP_VERSION);
         if (user === null) return;
@@ -203,9 +233,9 @@ export const Provider = ({ children }) => {
         }))));
     }
 
-    const informPayment = async payment => {
+    const informPayment = async (payment, sendReceipt) => {
         try {
-            const createdPayment = await paymentsService.informPayment(payment);
+            const createdPayment = await paymentsService.informPayment(payment, sendReceipt);
             changeAlertStatusAndMessage(true, 'success', 'El movimiento fue informado exitosamente!')
             createdPayment.user = user;
             setPayments(current => [...current, createdPayment]);
@@ -705,6 +735,7 @@ export const Provider = ({ children }) => {
             addCoursesToCollege,
             newCollege,
             newClazz,
+            generateReceipt,
             newUser,
             deleteUser,
             deleteStudent,
