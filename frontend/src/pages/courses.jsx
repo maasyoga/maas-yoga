@@ -2,18 +2,19 @@ import React, { useState, useEffect, useContext, useMemo } from "react";
 import Modal from "../components/modal";
 import PaidIcon from '@mui/icons-material/Paid';
 import "react-datepicker/dist/react-datepicker.css";
+import AssignmentIcon from '@mui/icons-material/Assignment';
 import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
 import SchoolIcon from '@mui/icons-material/School';
 import useToggle from "../hooks/useToggle"
-import AddTaskIcon from '@mui/icons-material/AddTask';
 import TaskModal from "../components/courses/taskModal";
 import Table from "../components/table";
 import { Context } from "../context/Context";
 import DoneOutlineIcon from '@mui/icons-material/DoneOutline';
-import Tooltip from '@mui/material/Tooltip';
 import RemoveDoneIcon from '@mui/icons-material/RemoveDone';
+import { COLORS } from "../constants";
 import Container from "../components/container";
+import NoDataComponent from "../components/table/noDataComponent";
+import LocalLibraryIcon from '@mui/icons-material/LocalLibrary';
 import PlusButton from "../components/button/plus";
 import StudentCoursesInfo from "../components/section/courses/studentCoursesInfo";
 import useQueryParam from "../hooks/useQueryParam";
@@ -21,15 +22,18 @@ import { STUDENT_STATUS, TABLE_SEARCH_CRITERIA } from "../constants";
 import { Link } from "react-router-dom";
 import StudentCalendar from "../components/calendar/studentCalendar";
 import coursesService from "../services/coursesService";
-import Spinner from "../components/spinner/spinner";
 import CreateUpdateCourseModal from "../components/modal/createUpdateCourse";
 import useModal from '../hooks/useModal'
+import Loader from "../components/spinner/loader";
+import DeleteButton from "../components/button/deleteButton";
+import EditButton from "../components/button/editButton";
+import AddTaskButton from "../components/button/addTaskButton";
 
 export default function Courses(props) {
     const { deleteCourse, changeTaskStatus, changeAlertStatusAndMessage, getStudentsByCourse } = useContext(Context);
     const [deleteModal, setDeleteModal] = useState(false);
     const [courseId, setCourseId] = useState(null);
-    const [opResult, setOpResult] = useState('No hay cursos.');
+    const [courseToDelete, setCourseToDelete] = useState(null);
     const [courseToEdit, setCourseToEdit] = useState(null);
     const [displayStudentsModal, setDisplayStudentsModal] = useState(false);
     const [isTaskStudentModal, setIsTaskStudentModal] = useState(false);
@@ -66,9 +70,10 @@ export default function Courses(props) {
         setAddTaskModal(value);
     }
 
-    const openDeleteModal = (id) => {
+    const openDeleteModal = (course) => {
         setDeleteModal(true);
-        setCourseId(id);
+        setCourseId(course.id);
+        setCourseToDelete(course);
     }
 
     const openAddTaskmodal = (id, name) => {
@@ -153,10 +158,10 @@ export default function Courses(props) {
             cell: row =>
                 <Link to={`/home/courses/${row.id}`} className="flex flex-col justify-center">
                     <div className="relative py-3 sm:max-w-xl sm:mx-auto">
-                        <div className="group cursor-pointer relative inline-block underline text-yellow-900 mx-1 cursor-pointer">{row.title}
-                            <div className="opacity-0 w-28 bg-orange-200 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
+                        <div style={{ color: COLORS.primary[900] }} className="group cursor-pointer relative inline-block underline mx-1 cursor-pointer">{row.title}
+                            <div style={{ backgroundColor: COLORS.primary[200] }} className="opacity-0 w-28 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
                                 {row.title}
-                                <svg className="absolute text-orange-200 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0" /></svg>
+                                <svg className="absolute h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon fill={COLORS.primary[200]} points="0,0 127.5,127.5 255,0" /></svg>
                             </div>
                         </div>
                     </div>
@@ -178,12 +183,12 @@ export default function Courses(props) {
         },
         {
             name: 'Alumnos',
-            selector: row => { return (<div className="flex-row"><button className="underline text-yellow-900 mx-1" onClick={() => openStudentsModal(row.students, row.title, row.id)}>Ver alumnos</button></div>) },
+            selector: row => (<div className="flex-row"><button style={{ color: COLORS.primary[900] }} className="underline mx-1" onClick={() => openStudentsModal(row.students, row.title, row.id)}>Ver alumnos</button></div>),
             sortable: true,
         },
         {
             name: 'Tareas',
-            selector: row => { return (<div className="flex-row"><button className="underline text-yellow-900 mx-1" onClick={() => openTasksModal(row.courseTasks, row.title, row.id)}>Ver tareas</button></div>) },
+            selector: row => (<div className="flex-row"><button style={{ color: COLORS.primary[900] }} className="underline mx-1" onClick={() => openTasksModal(row.courseTasks, row.title, row.id)}>Ver tareas</button></div>),
             sortable: true,
         },
         {
@@ -193,9 +198,7 @@ export default function Courses(props) {
         },
         {
             name: 'Acciones',
-            cell: row => {
-                return (<div className="flex flex-nowrap"><button className="rounded-full p-1 bg-green-200 hover:bg-green-300 mx-1" onClick={() => openAddTaskmodal(row.id, row.title)}><Tooltip title="Agregar tarea"><AddTaskIcon /></Tooltip></button><button className="rounded-full p-1 bg-red-200 hover:bg-red-300 mx-1" onClick={() => openDeleteModal(row.id)}><Tooltip title="Borrar"><DeleteIcon /></Tooltip></button><button className="rounded-full p-1 bg-orange-200 hover:bg-orange-300 mx-1" onClick={() => openEditModal(row)}><Tooltip title="Editar"><EditIcon /></Tooltip></button></div>)
-            },
+            cell: row => (<div className="flex flex-nowrap"><AddTaskButton onClick={() => openAddTaskmodal(row.id, row.title)}/><DeleteButton onClick={() => openDeleteModal(row)}/><EditButton onClick={() => openEditModal(row)} /></div>),
             sortable: true,
         },
     ], []);
@@ -224,9 +227,9 @@ export default function Courses(props) {
                 return (<><div className="flex flex-col justify-center">
                     <div className="relative py-3 sm:max-w-xl sm:mx-auto">
                         <div className="group cursor-pointer relative inline-block">{row.email}
-                            <div className="opacity-0 w-28 bg-orange-200 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
+                            <div style={{ backgroundColor: COLORS.primary[200] }} className="opacity-0 w-28 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
                                 {row.email}
-                                <svg className="absolute text-orange-200 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0" /></svg>
+                                <svg className="absolute h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon fill={COLORS.primary[200]} points="0,0 127.5,127.5 255,0" /></svg>
                             </div>
                         </div>
                     </div>
@@ -270,9 +273,9 @@ export default function Courses(props) {
                 return (<><div className="flex flex-col justify-center">
                     <div className="relative py-3 sm:max-w-xl sm:mx-auto">
                         <div className="group cursor-pointer relative inline-block">{row.comment}
-                            <div className="opacity-0 w-28 bg-orange-200 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
+                            <div style={{ backgroundColor: COLORS.primary[200] }} className="opacity-0 w-28 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
                                 {row.comment}
-                                <svg className="absolute text-orange-200 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0" /></svg>
+                                <svg className="absolute h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon fill={COLORS.primary[200]} points="0,0 127.5,127.5 255,0" /></svg>
                             </div>
                         </div>
                     </div>
@@ -282,7 +285,7 @@ export default function Courses(props) {
         },
         {
             name: 'Alumnos',
-            selector: row => { return (<div className="flex-row"><button className="underline text-yellow-900 mx-1" onClick={() => openStudentsTaskModal(row.students, row.title, row.id)}>Ver alumnos</button></div>) },
+            selector: row => { return (<div className="flex-row"><button style={{ color: COLORS.primary[900] }} className="underline mx-1" onClick={() => openStudentsTaskModal(row.students, row.title, row.id)}>Ver alumnos</button></div>) },
             sortable: true,
         },
     ];
@@ -302,18 +305,16 @@ export default function Courses(props) {
         },
         {
             name: 'Email',
-            cell: row => {
-                return (<><div className="flex flex-col justify-center">
+            cell: row => (<><div className="flex flex-col justify-center">
                     <div className="relative py-3 sm:max-w-xl sm:mx-auto">
                         <div className="group cursor-pointer relative inline-block">{row.email}
-                            <div className="opacity-0 w-28 bg-orange-200 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
+                            <div style={{ backgroundColor: COLORS.primary[200] }} className="opacity-0 w-28 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
                                 {row.email}
-                                <svg className="absolute text-orange-200 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0" /></svg>
+                                <svg className="absolute h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon fill={COLORS.primary[200]} points="0,0 127.5,127.5 255,0" /></svg>
                             </div>
                         </div>
                     </div>
-                </div></>)
-            },
+                </div></>),
             sortable: true,
         },
         {
@@ -401,9 +402,8 @@ export default function Courses(props) {
                     paginationServer={searchByTitle == undefined || searchByTitle == ""}
                     defaultTypeValue={defaultIdPayment !== undefined ? "Identificador" : undefined}
                     defaultSearchValue={defaultIdPayment}
-                    noDataComponent={opResult}
+                    noDataComponent={<NoDataComponent Icon={LocalLibraryIcon} title="No hay cursos" subtitle="No se encontraron cursos registrados"/>}
                     progressPending={isLoading.value}
-                    progressComponent={<Spinner/>}
                     paginationTotalRows={totalRows}
                     onChangePage={handlePageChange}
                     onChangeRowsPerPage={handlePerRowsChange}
@@ -422,23 +422,23 @@ export default function Courses(props) {
                 />
 
                 {addTaskModal && <TaskModal onUpdateTask={fetchCourses} isModalOpen={addTaskModal} setDisplay={setDisplayTask} courseName={courseName} courseId={courseId} />}
-                <Modal icon={<DeleteIcon />} open={deleteModal} setDisplay={setDisplay} title="Eliminar curso" buttonText={isLoading.value ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">Eliminando...</span></>) : <span>Eliminar</span>} onClick={handleDeleteCourse} children={<><div>Esta a punto de elimnar este curso. ¿Desea continuar?</div></>} />
-                <Modal size="large" style={style} hiddingButton icon={<SchoolIcon />} open={displayStudentsModal} setDisplay={setDisplay} closeText="Salir" title={'Alumnos del curso ' + '"' + courseName + '"'} children={<><div>   <Table
+                <Modal danger icon={<DeleteIcon />} open={deleteModal} setDisplay={setDisplay} title="Eliminar curso" buttonText={isLoading.value ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">Eliminando...</span></>) : <span>Eliminar</span>} onClick={handleDeleteCourse} children={<><div>Esta a punto de eliminar el curso <strong>{courseToDelete?.title || 'este curso'}</strong>. ¿Desea continuar?</div></>} />
+                <Modal size="large" style={style} footer={false} icon={<SchoolIcon />} open={displayStudentsModal} setDisplay={setDisplay} closeText="Salir" title={'Alumnos del curso ' + '"' + courseName + '"'} children={<><div>   <Table
                     columns={studentsColumns}
                     data={studentsLists}
-                    noDataComponent="Este curso aun no posee alumnos"
+                    noDataComponent={<NoDataComponent Icon={SchoolIcon} title="No hay alumnos" subtitle="No se encontraron alumnos inscriptos en este curso"/>}
                     pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
                 /></div></>} />
-                <Modal style={style} hiddingButton icon={<SchoolIcon />} open={isTaskStudentModal} setDisplay={setDisplay} closeText="Salir" title={'Alumnos de la tarea ' + '"' + courseName + '"'} children={<><div>   <Table
+                <Modal style={style} footer={false} icon={<SchoolIcon />} open={isTaskStudentModal} setDisplay={setDisplay} closeText="Salir" title={'Alumnos de la tarea ' + '"' + courseName + '"'} children={<><div>   <Table
                     columns={taskStudentsColumns}
                     data={studentsLists}
-                    noDataComponent="Esta tarea aun no posee alumnos"
+                    noDataComponent={<NoDataComponent Icon={SchoolIcon} title="No hay alumnos" subtitle="Esta tarea no contiene alumnos"/>}
                     pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
                 /></div></>} />
-                <Modal style={style} hiddingButton icon={<SchoolIcon />} open={displayTasksModal} setDisplay={setDisplay} closeText="Salir" title={'Tareas del curso ' + '"' + courseName + '"'} children={<><div>   <Table
+                <Modal style={style} footer={false} icon={<AssignmentIcon />} open={displayTasksModal} setDisplay={setDisplay} closeText="Salir" title={'Tareas del curso ' + '"' + courseName + '"'} children={<><div>   <Table
                     columns={taskColumn}
                     data={tasksLists}
-                    noDataComponent="Este curso aun no posee tareas"
+                    noDataComponent={<NoDataComponent Icon={AssignmentIcon} title="No hay tareas" subtitle="Este curso no cuenta con tareas aún"/>}
                     pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
                 /></div></>} />
                 

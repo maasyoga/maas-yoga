@@ -45,9 +45,9 @@ export default function VerifyPaymentClassesSection() {
     }
 
     return (<>
-        <div className="mb-6 md:my-6 mx-8 md:mx-4">
-            <p className="mb-3">Los pagos de las siguientes clases no estan verificados. Haga click en una clase para marcar la clase y los pagos correspondientes a la clase como verificados.</p>
-            <ClassesTable clazzes={clazzes.filter(clazz => !clazz.paymentsVerified)} onClazzClicked={onClazzClicked}/>
+        <div className="mb-6 md:my-6">
+            <p className="mb-3 text-gray-600">Los pagos de las siguientes clases no estan verificados. Haga click en una clase para marcar la clase y los pagos correspondientes a la clase como verificados.</p>
+            <ClassesTable disableActions clazzes={clazzes.filter(clazz => !clazz.paymentsVerified)} onClazzClicked={onClazzClicked}/>
             <Modal
                 icon={<PaidIcon />}
                 open={isModalOpen}

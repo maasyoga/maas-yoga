@@ -1,50 +1,71 @@
-import React, { useState } from "react";
-import TextField from '@mui/material/TextField';
-import MenuItem from '@mui/material/MenuItem';
+import React, { useState } from 'react';
+import ButtonPrimary from '../button/primary';
 import SearchIcon from '@mui/icons-material/Search';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
-import OutlinedInput from '@mui/material/OutlinedInput';
-import InputAdornment from '@mui/material/InputAdornment';
-import styles from "./searchBar.module.css";
-import ButtonPrimary from "../button/primary";
+import styles from './searchBar.module.css';
+import Loader from "../spinner/loader";
 
-    export default function SearchBar({ className = "", searchableColumns, searchValue, onChangeSearch, typeValue, onChangeType }) {
+export default function SearchBar({ className = "", searchableColumns, searchValue, onChangeSearch, typeValue, onChangeType, isLoading = false }) {
     const [valueToSearch, setValueToSearch] = useState('');
 
     const confirmSearch = () => {
         onChangeSearch(valueToSearch);
     }
 
+    const handleOnKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            confirmSearch();
+        }
+    }
+
     return(
-        <>
-        <div>
-            <FormControl className={styles.searchBarInput}>
-                <InputLabel htmlFor="outlined-adornment-amount">Buscar</InputLabel>
-                <OutlinedInput
-                    id="search-bar-table"
-                    size="small"
-                    startAdornment={<InputAdornment position="start"><SearchIcon/></InputAdornment>}
-                    label="Buscar"
-                    onChange={(e) => setValueToSearch(e.target.value)}
-                />
-            </FormControl>
-            <TextField
-                className={styles.searchBarType}
-                id="search-bar-type"
-                select
-                label="Buscar por"
-                value={typeValue}
-                onChange={(e) => onChangeType(e.target.value)}
-                size="small"
-            >
-            {searchableColumns.map(column => (
-                <MenuItem key={column.name} value={column.name}>
-                    {column.name}
-                </MenuItem>
-            ))}
-            </TextField>
+        <div className={`${styles.searchBarContainer} ${className}`}>
+            <div className={styles.integratedSearchBar}>
+                <div className={styles.searchInputSection}>
+                    <div className={styles.searchIconContainer}>
+                        {isLoading ? (
+                            <Loader className={styles.searchLoader} />
+                        ) : (
+                            <SearchIcon className={styles.searchIcon} />
+                        )}
+                    </div>
+                    <input
+                        type="search"
+                        name="search"
+                        inputMode="search"
+                        enterKeyHint="search"
+                        placeholder="Buscar..."
+                        value={valueToSearch}
+                        onChange={(e) => setValueToSearch(e.target.value)}
+                        onKeyDown={handleOnKeyDown}
+                        className={`${styles.searchInput} search-input text-base`}
+                    />
+                </div>
+                
+                <div className={styles.searchTypeSection}>
+                    <select
+                        value={typeValue}
+                        onChange={(e) => onChangeType(e.target.value)}
+                        className={styles.searchTypeSelect}
+                    >
+                        {searchableColumns.map(column => (
+                            <option key={column.name} value={column.name}>
+                                {column.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                
+                <ButtonPrimary
+                    onClick={confirmSearch}
+                    className={`${styles.searchButtonIntegrated} ${styles.searchButton}`}
+                    disabled={isLoading}
+                >
+                    <span className={styles.searchText}>Buscar</span>
+                    <span className="sm:hidden">
+                        <SearchIcon className={`${styles.searchIcon}`} />
+                    </span>
+                </ButtonPrimary>
+            </div>
         </div>
-        <ButtonPrimary onClick={() => confirmSearch()} className="mt-2">Buscar <SearchIcon className="ml-1"/></ButtonPrimary>
-    </>);
+    );
 } 

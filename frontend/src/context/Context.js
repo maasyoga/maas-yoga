@@ -45,8 +45,8 @@ export const Provider = ({ children }) => {
     const [isLoadingProfessors, setIsLoadingProfessors] = useState(true);
     const [agendaLocations, setAgendaLocations] = useState([]);
 
-    const getClazzes = async () => {
-        if (clazzes.length > 0) return clazzes;
+    const getClazzes = async (force = false) => {
+        if (!force && clazzes.length > 0) return clazzes;
         const data = await clazzesService.getClazzes();
         setClazzes(data);
         return data;
@@ -59,15 +59,15 @@ export const Provider = ({ children }) => {
         return data;
     }
 
-    const getServices = async () => {
-        if (services.length > 0) return services;
+    const getServices = async (force = false) => {
+        if (!force && services.length > 0) return services;
         const data = await templatesService.getServices();
         setServices(data);
         return data
     }
 
-    const getCategories = async () => {
-        if (categories.length > 0) return categories;
+    const getCategories = async (force = false) => {
+        if (!force && categories.length > 0) return categories;
         isLoadingCategories.enable()
         const data = await categoriesService.getCategories();
         isLoadingCategories.disable()
@@ -75,8 +75,8 @@ export const Provider = ({ children }) => {
         return data;
     }
 
-    const getProfessors = async () => {
-        if (professors.length > 0) return professors;
+    const getProfessors = async (force = false) => {
+        if (!force && professors.length > 0) return professors;
         setIsLoadingProfessors(true)
         const pfrs = await professorsService.getProfessors();
         setProfessors(pfrs);
@@ -96,8 +96,8 @@ export const Provider = ({ children }) => {
         return data
     }
 
-    const getTasks = async () => {
-        if (tasks.length > 0) return tasks;
+    const getTasks = async (force = false) => {
+        if (!force && tasks.length > 0) return tasks;
         setIsLoadingTasks(true)
         const tasksList = await tasksService.getTasks();
         setIsLoadingTasks(false)
@@ -199,6 +199,11 @@ export const Provider = ({ children }) => {
         return professor;
     }
 
+    const getPendingProfessorPayments = async () => {
+        const pendingPayments = await professorsService.getPendingPayments();
+        return pendingPayments;
+    }
+
     const getCourseDetailsById = async (courseId) => {
         return coursesService.getCourse(courseId);
     }
@@ -245,9 +250,9 @@ export const Provider = ({ children }) => {
         }
     };
 
-    const editPayment = async payment => {
+    const editPayment = async (payment, sendReceipt) => {
         try {
-            const editedPayment = await paymentsService.editPayment(payment);
+            const editedPayment = await paymentsService.editPayment(payment, sendReceipt);
             changeAlertStatusAndMessage(true, 'success', 'El movimiento fue editado exitosamente!')
             editedPayment.user = user;
             setPayments(current => current.map(p => p.id === payment.id ? merge(p, editedPayment) : p));
@@ -371,7 +376,8 @@ export const Provider = ({ children }) => {
     const editClazz = async (clazzId, clazz) => {
         await clazzesService.editclazz(clazzId, clazz);
         changeAlertStatusAndMessage(true, 'success', 'La clase fue editada exitosamente!')
-        setClazzes(current => current.map(s => s.id === clazzId ? merge(s, clazz) : s));
+        //Comentado porque despues hace un fetch con force
+        //setClazzes(current => current.map(s => s.id === clazzId ? merge(s, clazz) : s));
     }
 
     const newStudent = async student => {
@@ -773,6 +779,7 @@ export const Provider = ({ children }) => {
             getProfessors,
             getTasks,
             getPendingPaymentsByCourseFromStudent,
+            getPendingProfessorPayments,
             newProfessorPayment,
             editPayment,
             newProfessor,

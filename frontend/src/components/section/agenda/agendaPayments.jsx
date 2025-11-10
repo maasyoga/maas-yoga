@@ -1,13 +1,13 @@
 import React, { useContext, useState, useEffect } from "react";
 import { Context } from "../../../context/Context";
 import dayjs from 'dayjs';
-import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
-import TextField from '@mui/material/TextField';
-import MenuItem from '@mui/material/MenuItem';
 import Table from "../../table";
 import CustomCheckbox from "../../checkbox/customCheckbox";
 import TableSummary from '../../table/summary'
 import SelectAgendaLocations from '../../select/selectAgendaLocations'
+import DateTimeInput from "../../calendar/dateTimeInput";
+import { COLORS } from "../../../constants";
+import useToggle from "../../../hooks/useToggle";
 
 export default function AgendaPayments() {
 
@@ -15,12 +15,15 @@ export default function AgendaPayments() {
     const [selectedDate, setSelectedDate] = useState(dayjs(new Date()));
     const [selectedAgendaLocation, setSelectedAgendaLocation] = useState('');
     const [agendaCashValues, setAgendaCashValues] = useState([])
+    const isLoading = useToggle()
     const [accreditedOnly, setAccreditedOnly] = useState(true)
     const [localAgendaCashValues, setLocalAgendaCashValues] = useState([])
 
     useEffect(() => {
         const fetchData = async (year, month, location) => {
+            isLoading.enable()
             setAgendaCashValues(await getAgendaCashValues(year, month, location));
+            isLoading.disable()
         }
         if (selectedAgendaLocation != '' && selectedDate) {
             const year = selectedDate.$d.getFullYear();
@@ -63,10 +66,10 @@ export default function AgendaPayments() {
             selector: row => row.descripcion,
             cell: (row) => (<><div className="flex flex-col justify-center">
             <div className="relative py-3 sm:max-w-xl sm:mx-auto">
-              <div className="group relative inline-block text-yellow-900 mx-1">{row.descripcion}
-                <div className="opacity-0 w-28 bg-orange-200 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
+              <div style={{ color: COLORS.primary[900]}} className="group relative inline-block mx-1">{row.descripcion}
+                <div style={{ backgroundColor: COLORS.primary[200] }} className="opacity-0 w-28 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
                   {row.descripcion}
-                  <svg className="absolute text-orange-200 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                  <svg className="absolute h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon fill={COLORS.primary[200]} points="0,0 127.5,127.5 255,0"/></svg>
                 </div>
               </div>
             </div>
@@ -101,7 +104,7 @@ export default function AgendaPayments() {
                 <SelectAgendaLocations value={selectedAgendaLocation} onChange={setSelectedAgendaLocation}/>
             </div>
             <div className="w-4/12">
-                <DateTimePicker
+                <DateTimeInput
                     views={['year', 'month']}
                     label="Seleccionar fecha"
                     value={selectedDate}
@@ -111,11 +114,12 @@ export default function AgendaPayments() {
             </div>
             <div className="w-4/12">
                 <label style={{paddingLeft: "9px"}}>Acreditado</label>
-                <CustomCheckbox className="p-0" labelOn={"Si"} labelOff={"No"} onChange={() => setAccreditedOnly(!accreditedOnly)} checked={accreditedOnly}/>
+                <CustomCheckbox className="pl-2" labelOn={"Si"} labelOff={"No"} onChange={() => setAccreditedOnly(!accreditedOnly)} checked={accreditedOnly}/>
             </div>
         </div>
         <Table
             columns={columns}
+            progressPending={isLoading.value}
             data={localAgendaCashValues}
             pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
             responsive

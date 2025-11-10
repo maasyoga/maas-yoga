@@ -7,6 +7,7 @@ import AddTaskIcon from '@mui/icons-material/AddTask';
 import useModal from '../hooks/useModal';
 import { formatDateDDMMYY, getMonthNameByMonthNumber, prettyCriteria, randomColor, series } from '../utils';
 import { STUDENT_STATUS } from '../constants';
+import { COLORS } from '../constants';
 import SimpleCard from '../components/card/simpleCard';
 import SliderMonthCard from '../components/card/sliderMonthCard';
 import Table from '../components/table';
@@ -20,9 +21,9 @@ import { TabContext, TabList, TabPanel } from '@mui/lab';
 import TasksTable from '../components/table/tasksTable';
 import TaskModal from '../components/courses/taskModal';
 import CopyTaskModal from '../components/courses/copyTaskModal';
-import Spinner from '../components/spinner/spinner';
 import CourseDetailModal from '../components/modal/courseDetailModal';
 import Link from '../components/link/link';
+import CourseDetailSkeleton from '../components/skeleton/courseDetailSkeleton';
 
 const ProfessorCalendar = ({ coursePeriods }) => Object.keys(coursePeriods).map(year => <div className='mb-2' key={year}>
 	<div className='font-medium text-xl mb-1'>{year}</div>
@@ -62,9 +63,9 @@ const StudentsTable = ({ students, onSeePayments }) => {
 			<div className="flex flex-col justify-center">
 				<div className="relative py-3 sm:max-w-xl sm:mx-auto">
 					<div className="group cursor-pointer relative inline-block">{row.email}
-						<div className="opacity-0 w-28 bg-orange-200 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
+						<div style={{ backgroundColor: COLORS.primary[200] }} className="opacity-0 w-28 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
 						{row.email}
-						<svg className="absolute text-orange-200 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+						<svg className="absolute h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon fill={COLORS.primary[200]} points="0,0 127.5,127.5 255,0"/></svg>
 						</div>
 					</div>
 				</div>
@@ -126,7 +127,7 @@ const TasksModule = ({ course, onUpdateTask }) => {
 </>
 }
 
-const StudentsModule = ({ course }) => {
+const StudentsModule = ({ course, onSuspensionsChange }) => {
 	const suspensionsModal = useModal()
 	const [activeStudent, setActiveStudent] = useState(null);
 	const onSeeStudentPayments = student => setActiveStudent(student)
@@ -158,6 +159,7 @@ const StudentsModule = ({ course }) => {
 		isOpen={suspensionsModal.isOpen}
 		onClose={suspensionsModal.close}
 		courseId={course.id}
+		onSuspensionsChange={onSuspensionsChange}
 	/>
 </>
 }
@@ -233,12 +235,14 @@ const CourseDetail = () => {
 			setCourse(course)
 		}
 		getData()
-	}, []);
+	}, [courseId, getCourseDetailsById]);
 
-	const onUpdateTask = async () => {
+	const refreshCourse = async () => {
 		const course = await getCourseDetailsById(courseId)
 		setCourse(course)
 	}
+
+	const onUpdateTask = refreshCourse
 
 	const [tabValue, setTabValue] = useState("1");
 
@@ -270,7 +274,7 @@ const CourseDetail = () => {
 
 	
   return (
-    <Container disableTitle className="max-w-full" items={[{ name: "Cursos", href: "/home/courses" }, { name: `${course?.title || ''}` }]}>
+    <Container disableTitle className="max-w-full" items={[{ name: "Cursos", href: "/home/courses" }, { name: `${course?.title}`, isLoading: course === null }]}>
 		{course !== null ?
 		<>
 			<h1 className='text-2xl md:text-3xl text-center mb-12'>{course?.title}</h1>
@@ -292,7 +296,7 @@ const CourseDetail = () => {
 						/>
 					</TabPanel>
 					<TabPanel className="pt-4" value="2">
-						<StudentsModule course={course}/>
+						<StudentsModule course={course} onSuspensionsChange={refreshCourse}/>
 					</TabPanel>
 					<TabPanel className="pt-4" value="3">
 						<TasksModule course={course} onUpdateTask={onUpdateTask}/>
@@ -301,9 +305,7 @@ const CourseDetail = () => {
 			</Box>
 		</>
 		
-		: <div className="flex justify-center items-center h-screen">
-			<Spinner/>
-		</div>
+		: <CourseDetailSkeleton />
 		}
     </Container>
   )

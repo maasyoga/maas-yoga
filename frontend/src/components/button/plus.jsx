@@ -1,18 +1,22 @@
-import React from "react";
+import React, { useState } from "react";
 import AddIcon from '@mui/icons-material/Add';
-import { orange } from '@mui/material/colors';
+import { COLORS } from "../../constants";
 
-export default function PlusButton({ onClick, className, fontSize }) {
+export default function PlusButton({ onClick, className, disabled, size = "large", }) {
+    const [hovered, setHovered] = useState(false);
+    const bg = disabled ? undefined : (hovered ? COLORS.primary[550] : COLORS.primary[300]);
+    const color = disabled ? undefined : (hovered ? "white" : COLORS.primary[900]);
     
     return (
         <button
             onClick={onClick}
             type="button"
-            className={`bg-yellow-900 w-14 h-14 rounded-full shadow-lg flex justify-center items-center text-white text-4xl transition duration-200 ease-in-out bg-none hover:bg-none transform hover:-translate-y-1 hover:scale-115 ${className}`}
+            style={{ backgroundColor: bg, color }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            className={`${size === "large" ? "w-14 h-14" : size == 'xs' ? 'w-5 h-5' : "w-7 h-7"} rounded-full border border-transparent flex justify-center items-center shadow-sm focus:outline-none focus:ring-2 focus:ring-[${COLORS.primary[500]}] focus:ring-offset-2 transition-all duration-200 ease-in-out transform ${className}`}
         >
-            <span className="font-bold text-sm text-yellow-900">
-                <AddIcon fontSize={fontSize ? fontSize : "large"} sx={{ color: orange[50] }} />
-            </span>
+            <AddIcon fontSize={size == 'xs' ? "small" : size} />
         </button>
     );
 } 

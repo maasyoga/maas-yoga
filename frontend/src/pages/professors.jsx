@@ -4,38 +4,45 @@ import SchoolIcon from '@mui/icons-material/School';
 import { useFormik } from 'formik';
 import CommonInput from "../components/commonInput";
 import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
 import Table from "../components/table";
 import { Context } from "../context/Context";
 import Container from "../components/container";
+import NoDataComponent from "../components/table/noDataComponent";
 import PlusButton from "../components/button/plus";
 import CustomRadio from "../components/radio/customRadio";
 import { useNavigate } from "react-router-dom";
+import DeleteButton from "../components/button/deleteButton";
+import EditButton from "../components/button/editButton";
+import { COLORS } from "../constants";
+import ButtonPrimary from "../components/button/primary";
+import PendingProfessorPaymentsModal from "../components/modal/pendingProfessorPaymentsModal";
+import useToggle from "../hooks/useToggle";
 
 export default function Professors(props) {
     const { getProfessors, isLoadingProfessors, deleteProfessor, editProfessor, newProfessor, changeAlertStatusAndMessage } = useContext(Context);
+    const paymentsModal = useToggle(false);
     const [displayModal, setDisplayModal] = useState(false);
     const [professors, setProfessors] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [deleteModal, setDeleteModal] = useState(false);
     const [professorId, setProfessorId] = useState(null);
-    const [opResult, setOpResult] = useState('Verificando profesores...');
+    const [professorToDelete, setProfessorToDelete] = useState(null);
     const [edit, setEdit] = useState(false);
     const [professorToEdit, setProfessorToEdit] = useState({});
     const [isPhoneNumberDuplicated, setIsPhoneNumberDuplicated] = useState(false);
     const [isEmailDuplicated, setIsEmailDuplicated] = useState(false);
-    const [matches, setMatches] = useState(
-        window.matchMedia("(min-width: 700px)").matches
-    )
+    
     const navigate = useNavigate(); 
 
-    const fetchProfessors = async () => {
-        const data = await getProfessors();
+    const fetchProfessors = async (force = false) => {
+        setIsLoading(true);
+        const data = await getProfessors(force);
         setProfessors(data);
+        setIsLoading(false);
     };
 
     useEffect(() => {
-        fetchProfessors();
+        fetchProfessors(true);
     }, []);
 
     const [selectedProfessorInvoiceType, setSelectedProfessorInvoiceType] = useState('A');
@@ -48,9 +55,10 @@ export default function Professors(props) {
         setEdit(false);
     }
 
-    const openDeleteModal = (id) => {
+    const openDeleteModal = (id, professor) => {
         setDeleteModal(true);
         setProfessorId(id);
+        setProfessorToDelete(professor);
     }
 
     const openEditModal = async (professor) => {
@@ -64,6 +72,9 @@ export default function Professors(props) {
         setIsLoading(true);
         try{
             await deleteProfessor(professorId);
+            setTimeout(() => {
+                fetchProfessors(true);
+            }, 150);
         }catch {
             changeAlertStatusAndMessage(true, 'error', 'El profesor no pudo ser eliminado... Por favor inténtelo nuevamente.')
         }
@@ -79,7 +90,7 @@ export default function Professors(props) {
         {
             name: 'Nombre',
             selector: row => row.name,
-            cell: row => <div className="underline text-yellow-900 mx-1 cursor-pointer" onClick={() => handleOnClickProfessor(row)}>{row.name}</div>,
+            cell: row => <div style={{ color: COLORS.primary[900] }} className="underline mx-1 cursor-pointer" onClick={() => handleOnClickProfessor(row)}>{row.name}</div>,
             sortable: true,
             searchable: true,
         },
@@ -91,8 +102,7 @@ export default function Professors(props) {
         },
         {
             name: 'Acciones',
-            cell: row => { return (<div className="flex-row"><button className="rounded-full p-1 bg-red-200 hover:bg-red-300 mx-1" onClick={() => openDeleteModal(row.id)}><DeleteIcon /></button><button className="rounded-full p-1 bg-orange-200 hover:bg-orange-300 mx-1" onClick={() => openEditModal(row)}><EditIcon /></button></div>)
-        },
+            cell: row => (<div className="flex-row"><DeleteButton onClick={() => openDeleteModal(row.id, row)}/><EditButton onClick={() => openEditModal(row)} /></div>),
             sortable: true,
         },
     ], [professors]);
@@ -120,8 +130,15 @@ export default function Professors(props) {
                 setEdit(false);
                 setProfessorId(null);
                 setProfessorToEdit({});
+                setTimeout(() => {
+                    fetchProfessors(true);
+                }, 150);
             }else {
                 await newProfessor(body);
+                setTimeout(() => {
+                    fetchProfessors(true);
+                }, 150);
+                formik.resetForm();
             }
             setIsLoading(false);
             setDisplayModal(false);
@@ -132,18 +149,7 @@ export default function Professors(props) {
           }
           formik.values = {};
         },
-      });
-
-    useEffect(() => {
-        if(professors.length === 0 && !isLoadingProfessors)
-            setOpResult('No fue posible obtener los profesores, por favor recargue la página...');
-    }, [professors, isLoadingProfessors]);
-
-    useEffect(() => {
-        window
-        .matchMedia("(min-width: 700px)")
-        .addEventListener('change', e => setMatches( e.matches ));
-    }, []);
+    });
 
     const checkDuplicated = (field, callback) => {
         const isDuplicated = professors.some(st => st[field] == formik.values[field]);
@@ -156,122 +162,124 @@ export default function Professors(props) {
         <>
             <Container title="Profesores">
                 <Table
+                    progressPending={isLoading}
                     columns={columns}
                     data={professors}
                     pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
                     responsive
-                    noDataComponent={opResult}
+                    noDataComponent={<NoDataComponent Icon={SchoolIcon} title="No hay profesores" subtitle="No se encontraron profesores registrados"/>}
                 />
-                <div className="flex justify-end mt-6">
+                <div className="flex justify-between mt-6 items-center">
+                    <div>
+                        <ButtonPrimary onClick={paymentsModal.enable}>Ver pagos pendientes</ButtonPrimary>
+                    </div>
                     <PlusButton onClick={() => setDisplayModal(true)}/>
                 </div>
+                <PendingProfessorPaymentsModal 
+                    isOpen={paymentsModal.value} 
+                    onClose={paymentsModal.disable} 
+                />
                 <Modal icon={<SchoolIcon />} open={displayModal} setDisplay={setDisplay} title={edit ? 'Editar profesor' : 'Agregar profesor'} buttonText={isLoading ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">{edit ? 'Editando...' : 'Agregando...'}</span></>) : <span>{edit ? 'Editar' : 'Agregar'}</span>} onClick={formik.handleSubmit} children={<>
-                    <form className="pt-6 mb-4"    
+                    <form className="flex flex-col sm:grid sm:grid-cols-2 gap-6"
                         method="POST"
                         id="form"
                         onSubmit={formik.handleSubmit}
                     >
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="mb-4">
-                                <CommonInput 
-                                    label="Nombre"    
-                                    onBlur={formik.handleBlur}
-                                    value={formik.values.name}
-                                    name="name"
-                                    htmlFor="name"
-                                    id="name" 
-                                    type="text" 
-                                    placeholder="Nombre" 
-                                    onChange={formik.handleChange}
-                                />
-                            </div>
-                            <div className="mb-4">
-                                <CommonInput 
-                                        label="Apellido"    
-                                        onBlur={formik.handleBlur}
-                                        value={formik.values.surname}
-                                        name="surname"
-                                        htmlFor="surname"
-                                        id="surname" 
-                                        type="text" 
-                                        placeholder="Apellido"
-                                        onChange={formik.handleChange}
-                                />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="mb-4">
-                                <CommonInput 
-                                    label="Numero de contacto"    
-                                    onBlur={() => checkDuplicated("phoneNumber", () => setIsPhoneNumberDuplicated(true))}
-                                    onFocus={() => setIsPhoneNumberDuplicated(false)}
-                                    isInvalid={isPhoneNumberDuplicated}
-                                    invalidMessage={"Numero ya registrado"}
-                                    value={formik.values.phoneNumber}
-                                    name="phoneNumber"
-                                    htmlFor="phoneNumber"
-                                    id="phoneNumber" 
-                                    type="text" 
-                                    placeholder="Numero de contacto" 
-                                    onChange={formik.handleChange}
-                                />
-                            </div>
-                            <div className="mb-4">
-                                <CommonInput 
-                                    label="Email"    
-                                    onBlur={() => checkDuplicated("email", () => setIsEmailDuplicated(true))}
-                                    onFocus={() => setIsEmailDuplicated(false)}
-                                    isInvalid={isEmailDuplicated}
-                                    invalidMessage={"Email ya registrado"}
-                                    value={formik.values.email}
-                                    name="email"
-                                    htmlFor="email"
-                                    id="email" 
-                                    type="text" 
-                                    placeholder="Email"
-                                    onChange={formik.handleChange}
-                                />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="mb-4">
-                                <CustomRadio
-                                    checked={selectedProfessorInvoiceType === 'A'}
-                                    onChange={handleOptionChange}
-                                    value="A"
-                                    name="radio-buttons"
-                                    inputProps={{ 'aria-label': 'A' }}
-                                    label="FA (Factura A)"
-                                />
-                                <CustomRadio
-                                    type="radio"
-                                    value="B"
-                                    checked={selectedProfessorInvoiceType === 'B'}
-                                    onChange={handleOptionChange}
-                                    label="FB (Factura B)"
-                                />
-                            </div>
-                            <div className="mb-4">
-                                <CustomRadio
-                                    type="radio"
-                                    value="C"
-                                    checked={selectedProfessorInvoiceType === 'C'}
-                                    onChange={handleOptionChange}
-                                    label="FC (Factura C)"
-                                />
-                                <CustomRadio
-                                    type="radio"
-                                    value="NF"
-                                    checked={selectedProfessorInvoiceType === 'NF'}
-                                    onChange={handleOptionChange}
-                                    label="NF (No Factura)"
-                                />
-                            </div>
+                        <CommonInput 
+                            label="Nombre"    
+                            onBlur={formik.handleBlur}
+                            value={formik.values.name}
+                            name="name"
+                            htmlFor="name"
+                            id="name" 
+                            type="text" 
+                            placeholder="Nombre" 
+                            onChange={formik.handleChange}
+                        />
+                        <CommonInput 
+                            label="Apellido"    
+                            onBlur={formik.handleBlur}
+                            value={formik.values.surname}
+                            name="surname"
+                            htmlFor="surname"
+                            id="surname" 
+                            type="text" 
+                            placeholder="Apellido"
+                            onChange={formik.handleChange}
+                        />
+                        <CommonInput 
+                            label="Numero de contacto"    
+                            onBlur={() => checkDuplicated("phoneNumber", () => setIsPhoneNumberDuplicated(true))}
+                            onFocus={() => setIsPhoneNumberDuplicated(false)}
+                            isInvalid={isPhoneNumberDuplicated}
+                            invalidMessage={"Numero ya registrado"}
+                            value={formik.values.phoneNumber}
+                            name="phoneNumber"
+                            htmlFor="phoneNumber"
+                            id="phoneNumber" 
+                            type="text" 
+                            placeholder="Numero de contacto" 
+                            onChange={formik.handleChange}
+                        />
+                        <CommonInput 
+                            label="Email"    
+                            onBlur={() => checkDuplicated("email", () => setIsEmailDuplicated(true))}
+                            onFocus={() => setIsEmailDuplicated(false)}
+                            isInvalid={isEmailDuplicated}
+                            invalidMessage={"Email ya registrado"}
+                            value={formik.values.email}
+                            name="email"
+                            htmlFor="email"
+                            id="email" 
+                            type="text" 
+                            placeholder="Email"
+                            onChange={formik.handleChange}
+                        />
+                        <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <CustomRadio
+                                checked={selectedProfessorInvoiceType === 'A'}
+                                onChange={handleOptionChange}
+                                value="A"
+                                name="radio-buttons"
+                                inputProps={{ 'aria-label': 'A' }}
+                                label="FA (Factura A)"
+                            />
+                            <CustomRadio
+                                type="radio"
+                                value="B"
+                                checked={selectedProfessorInvoiceType === 'B'}
+                                onChange={handleOptionChange}
+                                label="FB (Factura B)"
+                            />
+                            <CustomRadio
+                                type="radio"
+                                value="C"
+                                checked={selectedProfessorInvoiceType === 'C'}
+                                onChange={handleOptionChange}
+                                label="FC (Factura C)"
+                            />
+                            <CustomRadio
+                                type="radio"
+                                value="NF"
+                                checked={selectedProfessorInvoiceType === 'NF'}
+                                onChange={handleOptionChange}
+                                label="NF (No Factura)"
+                            />
                         </div>
                     </form>
                 </>
                 } />
-                <Modal icon={<DeleteIcon />} open={deleteModal} setDisplay={setDisplay} title="Eliminar profesor" buttonText={isLoading ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">Eliminando...</span></>) : <span>Eliminar</span>} onClick={handleDeleteProfessor} children={<><div>Esta a punto de elimnar este profesor. ¿Desea continuar?</div></>} />
+                <Modal 
+                  danger 
+                  icon={<DeleteIcon />} 
+                  open={deleteModal} 
+                  setDisplay={() => setDeleteModal(false)} 
+                  title="Eliminar profesor" 
+                  buttonText={isLoading ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">Eliminando...</span></>) : <span>Eliminar</span>} 
+                  onClick={handleDeleteProfessor} 
+                >
+                  <div>¿Está seguro que desea eliminar al profesor <strong>{professorToDelete?.name} {professorToDelete?.lastName}</strong>? Esta acción no se puede deshacer.</div>
+                </Modal>
             </Container>
         </>
     );

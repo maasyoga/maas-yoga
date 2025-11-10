@@ -2,8 +2,10 @@ import { StatusCodes } from "http-status-codes";
 import { payment, course, student, user, file, professor, secretaryPayment, servicePayment, item, headquarter, clazz } from "../db/index.js";
 import * as logService from "./logService.js";
 import * as notificationService from "./notificationService.js";
+import * as emailService from "./emailService.js";
 import { Op, col, cast, Sequelize } from "sequelize";
 import utils from "../utils/functions.js";
+import { fillPaymentReceiptPDF } from "../utils/pdfUtils.js";
 
 const defaultPaymentInclude = [{ model: professor, attributes: ["name", "lastName"]},user, student, course, file, secretaryPayment, headquarter, item, clazz, student,{
   model: user,
@@ -16,7 +18,7 @@ const defaultPaymentInclude = [{ model: professor, attributes: ["name", "lastNam
  * @returns {Array} created payments if @param paymentParam is Array
  * @returns {Student} created payments if @param paymentParam is Payment
  */
-export const create = async (paymentParam, informerId) => {
+export const create = async (paymentParam, informerId, sendEmail = false) => {
   const isArray = Array.isArray(paymentParam);
   if (!isArray && paymentParam.isRegistrationPayment) {
     const { courseId, studentId } = paymentParam;
@@ -51,6 +53,21 @@ export const create = async (paymentParam, informerId) => {
   };
   const createdPayments = await payment.bulkCreate(paymentParam);
   logService.logCreatedPayments(createdPayments);
+  if (sendEmail) {
+    // Enviar recibo por email para cada pago creado
+    try {
+      for (const createdPayment of createdPayments) {
+        try {
+          await sendReceiptByEmail(createdPayment.id);
+        } catch (error) {
+          console.error(`Error enviando recibo por email para pago ${createdPayment.id}:`, error);
+          // No lanzamos el error para no interrumpir el flujo principal
+        }
+      }
+    } catch (error) {
+      console.error(`Error enviando recibos por email:`, error);
+    }
+  }
   return (createdPayments.length === 1) ? getById(createdPayments[0].id) : createdPayments;
 };
 
@@ -309,11 +326,18 @@ export const getAllVerified = async (page = 1, size = 10, specification, all) =>
   };
 };
 
-export const updatePayment = async (id, data, userId) => {
+export const updatePayment = async (id, data, userId, sendEmail = false) => {
   if (data.verified)
     throw ({ statusCode: StatusCodes.BAD_REQUEST, message: "Can not change verified with this endpoint" });
   await payment.update(data, { where: { id } });
   logService.logUpdate(id, userId);
+  if (sendEmail) {
+    try {
+      await sendReceiptByEmail(id);
+    } catch (error) {
+      console.error(`Error enviando recibo por email para pago ${id}:`, error);
+    }
+  }
   return getById(id);
 };
 
@@ -322,6 +346,49 @@ export const getById = async (id) => {
   if (p == null)
     throw ({ statusCode: StatusCodes.NOT_FOUND, message: "payment not found" });
   return p;
+};
+
+export const getReceipt = async (paymentId) => {
+  const payment = await getById(paymentId);
+  const date = utils.dateToDDMMYYYY(new Date(payment.at));
+  let price = payment.value;
+  if (payment.discount)
+    price += (payment.discount / 100) * price;
+  // Formatear precio
+  price = `$${price.toLocaleString("es-AR")}`;
+  // Formatear from
+  const from = `${payment?.student?.name || ""} ${payment?.student?.lastName || ""}`;
+  // Descripción
+  const description = getReceiptDescription(payment);
+  // Tipo de pago
+  const paymentType = payment.type;
+  // Descuento
+  const discount = payment.discount;
+  let discountValue = (payment.discount / 100) * payment.value;
+  discountValue = `$-${discountValue.toLocaleString("es-AR")}`;
+  // Total
+  const total = `$${payment.value.toLocaleString("es-AR")}`;
+
+  return fillPaymentReceiptPDF({
+    date,
+    from,
+    description,
+    paymentType,
+    price,
+    discount,
+    total,
+    discountValue,
+  });
+};
+
+const getReceiptDescription = (payment) => {
+  if (payment.course)
+    return payment.course.title;
+  if (payment.item)
+    return payment.item.title;
+  if (payment.clazz)
+    return payment.clazz.title;
+  return "";
 };
 
 export const changeVerified = async (id, verified, verifiedBy) => {
@@ -382,5 +449,42 @@ const getWhereForSearchPayment = (spec, all, verified) => {
     return {
       [Op.and]: [{verified}, spec]
     };
+  }
+};
+
+/**
+ * Envía el recibo de pago por email al estudiante
+ * @param {number} paymentId - ID del pago
+ * @param {number} informerId - ID del usuario que informó el pago
+ */
+const sendReceiptByEmail = async (paymentId) => {
+  try {
+    // Obtener el pago con toda la información necesaria
+    const paymentData = await getById(paymentId);
+    
+    // Verificar que el estudiante tenga email
+    if (!paymentData.student?.email) {
+      console.log(`Estudiante ${paymentData.student?.id} no tiene email configurado`);
+      return;
+    }
+    
+    // Generar el PDF del recibo
+    const pdfBuffer = await getReceipt(paymentId);
+    
+    const studentFirstName = utils.capitalizeString(paymentData.student.name);
+    const studentLastName = utils.capitalizeString(paymentData.student.lastName);
+
+    // Enviar el email con el PDF adjunto
+    emailService.sendPaymentReceipt(
+      paymentData.student.email,
+      `${studentFirstName} ${studentLastName}`,
+      pdfBuffer,
+      paymentId
+    );
+    
+    console.log(`Recibo enviado por email exitosamente para pago ${paymentId}`);
+  } catch (error) {
+    console.error(`Error enviando recibo por email para pago ${paymentId}:`, error);
+    throw error;
   }
 };

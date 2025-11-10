@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useContext } from 'react'
 import Table from '../table';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 import { Link } from "react-router-dom";
 import useModal from '../../hooks/useModal';
 import Modal from '../modal';
@@ -10,6 +11,9 @@ import AddTaskIcon from '@mui/icons-material/AddTask';
 import RemoveDoneIcon from '@mui/icons-material/RemoveDone';
 import DoneOutlineIcon from '@mui/icons-material/DoneOutline';
 import { Context } from '../../context/Context';
+import { COLORS } from '../../constants';
+import NoDataComponent from '../table/noDataComponent';
+import { Tooltip } from '@mui/material';
 
 const TaskList = ({ tasks, courses, studentId, getStudent }) => {
   const [filteredTasks, setFilteredTasks] = useState([]);
@@ -55,6 +59,16 @@ const TaskList = ({ tasks, courses, studentId, getStudent }) => {
     }
   }
 
+  const getTasksStatusForTable = (crsId) => {
+    if (tasks.length > 0) {
+      const courseTasks = tasks.filter(tk => tk.courseId === crsId);
+      const completedTasks = courseTasks.filter(tk => tk.studentCourseTask.completed === true);
+      return <Tooltip title={completedTasks.length + ' de ' + courseTasks.length + ' tareas completadas'}><span>{completedTasks.length} / {courseTasks.length}</span></Tooltip>;
+    } else {
+      return "Sin tareas";
+    }
+  }
+
   const handleChangeTaskStatus = async (task, taskStatus) => {
     try {
         await changeTaskStatus(task.id, studentId, taskStatus);
@@ -72,9 +86,9 @@ const TaskList = ({ tasks, courses, studentId, getStudent }) => {
         <Link to={`/home/courses?id=${row.id}`} className="flex flex-col justify-center">
           <div className="relative py-3 sm:max-w-xl sm:mx-auto">
             <div className="group cursor-pointer relative inline-block">{row.title}
-              <div className="opacity-0 w-28 bg-orange-200 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
+              <div style={{ backgroundColor: COLORS.primary[200] }} className="opacity-0 w-28 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
                 {row.title}
-                <svg className="absolute text-orange-200 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0" /></svg>
+                <svg className="absolute h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon fill={COLORS.primary[200]} points="0,0 127.5,127.5 255,0" /></svg>
               </div>
             </div>
           </div>
@@ -89,9 +103,9 @@ const TaskList = ({ tasks, courses, studentId, getStudent }) => {
         return (<><div className="flex flex-col justify-center">
           <div className="relative py-3 sm:max-w-xl sm:mx-auto">
             <div className="group cursor-pointer relative inline-block">{row.description}
-              <div className="opacity-0 w-28 bg-orange-200 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
+              <div style={{ backgroundColor: COLORS.primary[200] }} className="opacity-0 w-28 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
                 {row.description}
-                <svg className="absolute text-orange-200 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0" /></svg>
+                <svg className="absolute h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon fill={COLORS.primary[200]} points="0,0 127.5,127.5 255,0" /></svg>
               </div>
             </div>
           </div>
@@ -120,9 +134,15 @@ const TaskList = ({ tasks, courses, studentId, getStudent }) => {
       selector: row => getTasksStatus(row.id),
       cell: row => (
         <div className="flex flex-row justify-center">
-          <span className="my-auto mr-2">{getTasksStatus(row.id)}</span>
-          <button onClick={() => openTaskModal(row.id)} className="rounded-2xl bg-orange-200 shadow px-2 py-1 my-2">
-            <span>{((getTasksProgress(row.id) === 0) && (getTasksStatus(row.id) !== '0/0')) && (<><CloseIcon color="error" /></>)}{(getTasksProgress(row.id) === 1) && (<><DoneAllIcon color="success" /></>)}{((getTasksProgress(row.id) < 1) && ((getTasksProgress(row.id) > 0))) && (<><DoneIcon color="success" /></>)}</span>
+          <span className="my-auto mr-2">{getTasksStatusForTable(row.id)}</span>
+          <button onClick={() => openTaskModal(row.id)} style={{ backgroundColor: COLORS.primary[200] }} className="rounded-2xl shadow px-2 py-1 my-2">
+            <Tooltip title="Ver tareas">
+              <span>
+                {((getTasksProgress(row.id) === 0) && (getTasksStatus(row.id) !== '0/0')) && (<><CloseIcon color="error" /></>)}
+                {(getTasksProgress(row.id) === 1) && (<><DoneAllIcon color="success" /></>)}
+                {((getTasksProgress(row.id) < 1) && ((getTasksProgress(row.id) > 0))) && (<><DoneIcon color="success" /></>)}
+              </span>
+            </Tooltip>
           </button>
         </div>),
       sortable: true,
@@ -137,9 +157,7 @@ const TaskList = ({ tasks, courses, studentId, getStudent }) => {
     },
     {
       name: 'Estado de la tarea',
-      cell: row => {
-        return (<>{(row.studentCourseTask.completed === false) ? <><span className="my-auto mr-2">No completada</span><CloseIcon color="error" /></> : <><span className="my-auto mr-2">Completada</span><DoneIcon color="success" /></>}</>)
-      },
+      cell: row => (<>{(row.studentCourseTask.completed === false) ? <><span className="my-auto mr-2">No completada</span><CloseIcon color="error" /></> : <><span className="my-auto mr-2">Completada</span><DoneIcon color="success" /></>}</>),
       sortable: true,
     },
     {
@@ -147,17 +165,19 @@ const TaskList = ({ tasks, courses, studentId, getStudent }) => {
       cell: row => (
       <div className="flex flex-nowrap">
           <button className="rounded-full p-1 bg-red-300 hover:bg-red-400 mx-1" onClick={() => handleChangeTaskStatus(row, false)}>
+            <Tooltip title="Marcar como no completada">
               <RemoveDoneIcon />
+            </Tooltip>
           </button>
           <button className="rounded-full p-1 bg-green-300 hover:bg-green-400 mx-1" onClick={() => handleChangeTaskStatus(row, true)}>
+            <Tooltip title="Marcar como completada">
               <DoneOutlineIcon />
+            </Tooltip>
           </button>
       </div>),
       sortable: true,
   },
   ];
-
-  const modalStyles = matches ? { minWidth: '650px' } : {}
 
   useEffect(() => {
     const courseTasks = tasks.filter(tk => tk.courseId === courseId);
@@ -166,20 +186,18 @@ const TaskList = ({ tasks, courses, studentId, getStudent }) => {
   
 
   return (<>
-    <Modal style={modalStyles} open={filteredTasksModal.isOpen} onClose={filteredTasksModal.toggle} hiddingButton icon={<AddTaskIcon />} closeText="Salir" title="Tareas del curso">
-      <div className="mt-8">
-        <Table
-          columns={taskColumn}
-          data={filteredTasks}
-          noDataComponent="Este curso no posee tareas"
-          pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
-        />
-      </div>
+    <Modal open={filteredTasksModal.isOpen} onClose={filteredTasksModal.toggle} footer={false} icon={<AddTaskIcon />} title="Tareas del curso">
+      <Table
+        columns={taskColumn}
+        data={filteredTasks}
+        noDataComponent="Este curso no posee tareas"
+        pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
+      />
     </Modal>
     <Table
       columns={coursesColumns}
       data={coursesWithTasks}
-      noDataComponent="Este alumno no esta asociado a ningun curso"
+      noDataComponent={<NoDataComponent Icon={AssignmentIcon} title="No hay tareas" subtitle='Este alumno no tiene ninguna tarea asignada'/>}
       pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
     />
   </>

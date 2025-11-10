@@ -9,6 +9,10 @@ export function getMonthNames() {
     ];
 }
 
+export function randomId(length = 6) {
+  return Math.random().toString(36).substring(2, length+2);
+};
+
 /**
  * 
  * @param {String} from 
@@ -336,5 +340,5 @@ export function getMonthNameByMonthNumber(monthNumber) {
     const year = new Date().getFullYear();
     const date = new Date(year, monthNumber - 1); 
     date.setDate(monthNumber);
-    return getMonthName(date)
+    return capitalizeFirstCharacter(getMonthName(date))
 }

@@ -59,7 +59,7 @@ export default function ProfessorCalendar({ onClickAddProfessorPayment, professo
                         <div>{itemList}</div>
                         <Tooltip title={"Agregar"}>
                             <div className="w-5 h-5 ml-4">
-                                <PlusButton className="w-5 h-5" fontSize={"small"} onClick={handleOnCreatePayment}/>
+                                <PlusButton size="xs" onClick={handleOnCreatePayment}/>
                             </div>
                         </Tooltip>
                     </div>)
@@ -111,6 +111,10 @@ export default function ProfessorCalendar({ onClickAddProfessorPayment, professo
             if (payment.courseId != courseId) {
                 continue
             }
+            if (payment.periodFrom == null || payment.periodTo == null) {
+                continue
+            }
+            
             let start = toCustomDateObj(payment.periodFrom);
             let end = toCustomDateObj(payment.periodTo);
             while ((start.year < end.year) || (start.year  === end.year && start.month <= end.month)) {

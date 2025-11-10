@@ -19,6 +19,13 @@ export default {
     }
     return year + '-' + month + '-' + day;
   },
+  
+  dateToDDMMYYYY(date) {
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  },
 
   fromDDMMYYYYStringToDate(date) {
     if (!date) return null;
@@ -102,6 +109,73 @@ export default {
   parseDateFromStringYYYYMMDD(dateString) {
     const [year, month, day] = dateString.split("-").map(Number);
     return new Date(year, month - 1, day);
+  },
+
+  capitalizeString(str) {
+    if (!str) return "";
+    return str.charAt(0).toUpperCase() + str.slice(1);
   }
 
 };
+
+export function toMonthsNames(from, to) {
+  if (typeof from === "string" && from.includes("-") && from.length === 10) {
+    const [fromYear, fromMonth, fromDay] = from.split("-");
+    const [toYear, toMonth, toDay] = to.split("-");
+    from = new Date(fromYear, fromMonth -1, fromDay);
+    to = new Date(toYear, toMonth -1, toDay);
+  } else {
+    from = new Date(from);
+    to = new Date(to);
+  }
+  const diffMiliseconds = Math.abs(from - to);
+  const milisecondsPerDay = 1000 * 60 * 60 * 24;
+  const diffInDays = Math.floor(diffMiliseconds / milisecondsPerDay);
+  const format = (from, to) => `${from} - ${to}`;
+  if (diffInDays < 365 && isFirstDayOfMonth(from) && isLastDayOfMonth(to)) {
+    const fromMonth = getMonthName(from);
+    const toMonth = getMonthName(to);
+    return fromMonth === toMonth ? fromMonth : format(fromMonth, toMonth);
+  } else {
+    return format(formatDateDDMMYY(from), formatDateDDMMYY(to));
+  }
+}
+
+function isFirstDayOfMonth(date) {
+  return date.getDate() === 1;
+}
+
+function isLastDayOfMonth(date) {
+  const day = date.getDate();
+  const month = date.getMonth();
+  const nextDay = new Date(date);
+  nextDay.setDate(day + 1);
+  return nextDay.getMonth() !== month;
+}
+
+export function getMonthName(date) {
+  const options = { month: "long" };
+  return date.toLocaleDateString("es-ES", options);
+}
+
+function formatDateDDMMYY(date) {
+  try {
+    if (typeof date == "string") {
+      if (date.length === 10) {
+        const [year, month, day] = date.split("-");
+        date = new Date(year, parseInt(month) -1, day);
+      } else {
+        date = new Date(date);
+      }
+    }
+    let day = date.getDate();
+    let month = date.getMonth() +1;
+    if (day < 10)
+      day = "0" + day;
+    if (month < 10)
+      month = "0" + month;
+    return `${day}/${month}/${date.getFullYear()}`;
+  } catch (e) {
+    return "Fecha invalida";
+  }
+}

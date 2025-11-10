@@ -4,14 +4,13 @@ import DragNDrop from "../../dragndrop/dragndrop";
 import Papa from "papaparse";
 import Table from "../../table";
 import ButtonPrimary from "../../button/primary";
-import { orange } from '@mui/material/colors';
-import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import TabContext from '@mui/lab/TabContext';
 import TabList from '@mui/lab/TabList';
 import TabPanel from '@mui/lab/TabPanel';
 import Spinner from "../../spinner/spinner";
+import { COLORS } from "../../../constants";
 
 export default function ImportModule({ onCancel, moduleName, csvToObject, isAlreadyImported, columns, onImport }) {
     const [isLoading, setIsLoading] = useState(false);
@@ -20,19 +19,6 @@ export default function ImportModule({ onCancel, moduleName, csvToObject, isAlre
     const [alreadyImportedData, setAlreadyImportedData] = useState(null);
     const [selectedData, setSelectedData] = useState([]);
     const [tabValue, setTabValue] = useState('1');
-
-    const theme = createTheme({
-        palette: {
-          primary: {
-            // Purple and green play nicely together.
-            main: orange[500],
-          },
-          secondary: {
-            // This is green.A700 as hex.
-            main: '#11cb5f',
-          },
-        },
-    });
 
     const onDropAccepted = (csvFile) => {
         setIsLoading(true);
@@ -108,7 +94,7 @@ export default function ImportModule({ onCancel, moduleName, csvToObject, isAlre
     return (<>
         <div className="flex items-center mb-6">
             <ArrowBackIcon onClick={onCancel} className="cursor-pointer"/>
-            <h1 className="w-full text-2xl md:text-3xl text-center font-bold text-yellow-900">Importar {moduleName}</h1>
+            <h1 style={{ color: COLORS.primary[900] }} className="w-full text-2xl md:text-3xl text-center font-bold">Importar {moduleName}</h1>
         </div>
         <div>
             {isLoading ? <div className="flex justify-center"><Spinner/></div> : <>
@@ -116,20 +102,18 @@ export default function ImportModule({ onCancel, moduleName, csvToObject, isAlre
                     <DragNDrop multiple={false} onDropAccepted={onDropAccepted} acceptedFiles={{ 'text/csv': ['.csv'] }}/>
                     :
                 <>
-                    <ThemeProvider theme={theme}>
-                        <Box sx={{ width: '100%', typography: 'body1' }}>
-                            <TabContext value={tabValue}>
-                                <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                                    <TabList onChange={handleChangeTabValue}>
-                                            <Tab label="Sin importar" value="1" />
-                                            <Tab label="Ya importados" value="2" />
-                                    </TabList>
-                                </Box>
-                                <TabPanel value="1">{NotImportedTable}</TabPanel>
-                                <TabPanel value="2">{AlreadyImportedTable}</TabPanel>
-                            </TabContext>
-                        </Box>
-                    </ThemeProvider>
+                    <Box sx={{ width: '100%', typography: 'body1' }}>
+                        <TabContext value={tabValue}>
+                            <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                                <TabList onChange={handleChangeTabValue}>
+                                        <Tab label="Sin importar" value="1" />
+                                        <Tab label="Ya importados" value="2" />
+                                </TabList>
+                            </Box>
+                            <TabPanel value="1">{NotImportedTable}</TabPanel>
+                            <TabPanel value="2">{AlreadyImportedTable}</TabPanel>
+                        </TabContext>
+                    </Box>
                 </>}
             </>}
         </div>
