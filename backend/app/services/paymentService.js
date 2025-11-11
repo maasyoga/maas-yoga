@@ -326,11 +326,18 @@ export const getAllVerified = async (page = 1, size = 10, specification, all) =>
   };
 };
 
-export const updatePayment = async (id, data, userId) => {
+export const updatePayment = async (id, data, userId, sendEmail = false) => {
   if (data.verified)
     throw ({ statusCode: StatusCodes.BAD_REQUEST, message: "Can not change verified with this endpoint" });
   await payment.update(data, { where: { id } });
   logService.logUpdate(id, userId);
+  if (sendEmail) {
+    try {
+      await sendReceiptByEmail(id);
+    } catch (error) {
+      console.error(`Error enviando recibo por email para pago ${id}:`, error);
+    }
+  }
   return getById(id);
 };
 
@@ -350,9 +357,9 @@ export const getReceipt = async (paymentId) => {
   // Formatear precio
   price = `$${price.toLocaleString("es-AR")}`;
   // Formatear from
-  const from = `${payment?.student?.name} ${payment?.student?.lastName}`;
+  const from = `${payment?.student?.name || ""} ${payment?.student?.lastName || ""}`;
   // Descripción
-  const description = payment.course?.title || '';
+  const description = getReceiptDescription(payment);
   // Tipo de pago
   const paymentType = payment.type;
   // Descuento
@@ -372,6 +379,16 @@ export const getReceipt = async (paymentId) => {
     total,
     discountValue,
   });
+};
+
+const getReceiptDescription = (payment) => {
+  if (payment.course)
+    return payment.course.title;
+  if (payment.item)
+    return payment.item.title;
+  if (payment.clazz)
+    return payment.clazz.title;
+  return "";
 };
 
 export const changeVerified = async (id, verified, verifiedBy) => {
@@ -438,6 +455,7 @@ const getWhereForSearchPayment = (spec, all, verified) => {
 /**
  * Envía el recibo de pago por email al estudiante
  * @param {number} paymentId - ID del pago
+ * @param {number} informerId - ID del usuario que informó el pago
  */
 const sendReceiptByEmail = async (paymentId) => {
   try {

@@ -1,9 +1,10 @@
 import { Op } from "sequelize";
-import utils from "../utils/functions.js";
+import utils, { toMonthsNames } from "../utils/functions.js";
 import { StatusCodes } from "http-status-codes";
 import { course, student, courseStudent, courseTask, studentCourseTask, payment, professorCourse, professor, sequelize } from "../db/index.js";
 import { CRITERIA_COURSES, PAYMENT_TYPES } from "../utils/constants.js";
 import { getStudentsByCourse } from "./studentService.js";
+import ExcelJS from "exceljs";
 
 const paymentBelongToProfessor = (payment, professor) => {
   try {
@@ -294,6 +295,9 @@ export const setCompletedStudentTask = async (studentCourseTaskParam, courseTask
   studentCourseTask.update(studentCourseTaskParam, { where: { courseTaskId, studentId } });
 };
 
+
+const isCriteriaByStudent = (criteria) => criteria === CRITERIA_COURSES.STUDENT || criteria === CRITERIA_COURSES.STUDENT_ASSISTANCE;
+
 /**
  * 
  * @param {String} from in format yyyy-mm-dd
@@ -376,13 +380,12 @@ export const calcProfessorsPayments = async (from, to, professorId, courseId) =>
       }
     }
   }
-  const isCriteriaByStudent = (criteria) => criteria === CRITERIA_COURSES.STUDENT || criteria === CRITERIA_COURSES.STUDENT_ASSISTANCE;
   for (const course of coursesInRange) {
     for (const prof of course.professors) {
       if ("result" in prof) {
         prof.result.courseId = course.id;
-        prof.result.criteria = prof.criteria;
-        prof.result.criteriaValue = prof.criteriaValue;
+        prof.result.criteria = prof.result.period.criteria;
+        prof.result.criteriaValue = prof.result.period.criteriaValue;
         prof.result.collectedByPayments = prof.result.payments.reduce((total, p) => total + p.value, 0);
         prof.result.totalStudents = prof.result.payments.map(p => p.studentId);
         prof.result.totalStudents = utils.removeDuplicated(prof.result.totalStudents).length;
@@ -403,7 +406,7 @@ export const calcProfessorsPayments = async (from, to, professorId, courseId) =>
   return coursesInRange;
 };
 
-export const addProfessorPayments = async (data, informerId = null) => {
+export const addProfessorPayments = async (data, from, to, informerId = null) => {
   const payments = data.map(d => ({
     type: PAYMENT_TYPES.CASH,
     value: d.collectedByProfessor *-1,
@@ -414,6 +417,8 @@ export const addProfessorPayments = async (data, informerId = null) => {
     professorCourseId: d.professorCourseId,
     professorId: d.professorId,
     userId: informerId,
+    periodFrom: from,
+    periodTo: to,
   }));
   let paymentsAdded = 0;
   for (const p of payments) {
@@ -421,7 +426,7 @@ export const addProfessorPayments = async (data, informerId = null) => {
       where: {
         periodFrom: from,
         periodTo: to,
-        professor: p.professor,
+        professorId: p.professorId,
       }
     });
     if (alreadyCalculated === 0) {
@@ -435,4 +440,146 @@ export const addProfessorPayments = async (data, informerId = null) => {
 export const addProfessorPayment = async (payment, from, to, informerId) => {
   const amountAdded = await addProfessorPayments([payment], from, to, informerId);
   return amountAdded === 1;
+};
+
+export const exportProfessorsPayments = async (from, to, professorId, courseId) => {
+  const details = await calcProfessorsPayments(from, to, professorId, courseId);
+
+  // Create Excel workbook
+  const workbook = new ExcelJS.Workbook();
+  const worksheetsByProfesorFullName = {};
+  details.forEach(course => {
+    course.professors = course.professors.filter(professor => "result" in professor);
+  });
+  details.forEach(course => {
+    course.professors.forEach(professor => {
+      const fullName = `${professor.name} ${professor.lastName}`;
+      if (!worksheetsByProfesorFullName[fullName]) {
+        worksheetsByProfesorFullName[fullName] = {
+          worksheet: workbook.addWorksheet(fullName),
+          courses: [],
+          payments: [],
+          results: [],
+        };
+      }
+      worksheetsByProfesorFullName[fullName].courses.push(course);
+      worksheetsByProfesorFullName[fullName].results.push(professor.result);
+      worksheetsByProfesorFullName[fullName].payments.push(...professor.result.payments);
+    });
+  });
+
+  Object.keys(worksheetsByProfesorFullName).forEach(fullName => {
+    const worksheet = worksheetsByProfesorFullName[fullName].worksheet;
+    const courses = worksheetsByProfesorFullName[fullName].courses;
+    const payments = worksheetsByProfesorFullName[fullName].payments;
+    const results = worksheetsByProfesorFullName[fullName].results;
+    
+    let currentRow = 1;
+    
+    // Add headers
+    worksheet.addRow(["Curso", "Pagos", "Total"]);
+    const headerRow = worksheet.getRow(currentRow);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE0E0E0" }
+    };
+    currentRow++;
+    
+    courses.forEach(course => {
+      const coursePayments = payments.filter(payment => payment.courseId === course.id);
+      const courseResult = results.find(result => result.courseId === course.id);
+      if (courseResult == null || courseResult == undefined)
+        return;
+      
+      if (coursePayments.length == 0)
+        return;
+      // Add course header row
+      const courseHeaderRow = worksheet.getRow(currentRow);
+      courseHeaderRow.getCell(1).value = course.title;
+      courseHeaderRow.getCell(1).font = { bold: true };
+      
+      const totalAmount = courseResult.collectedByProfessor;
+      courseHeaderRow.getCell(3).value = "$" + totalAmount;
+      courseHeaderRow.getCell(3).font = { bold: true };
+      currentRow++;
+
+      // Group payments by discount percentage
+      const paymentGroups = {};
+      
+      coursePayments.forEach((p, i) => {
+        if (i == 0) {
+          const monthNames = toMonthsNames(from, to);
+          const cell = worksheet.getRow(currentRow).getCell(1);
+          const parsedCriterias = {
+            [CRITERIA_COURSES.PERCENTAGE]: "Porcentaje",
+            [CRITERIA_COURSES.PERCENTAGE_ASSISTANCE]: "Porcentaje Asistencia",
+            [CRITERIA_COURSES.STUDENT]: "Estudiante",
+            [CRITERIA_COURSES.STUDENT_ASSISTANCE]: "Estudiante Asistencia",
+            [CRITERIA_COURSES.ASSISTANT]: "Asistente",
+          };
+          const symbol = (courseResult.period.criteria == CRITERIA_COURSES.PERCENTAGE || courseResult.period.criteria == CRITERIA_COURSES.PERCENTAGE_ASSISTANCE) ? "%" : "$";
+          cell.value = `${monthNames} (${parsedCriterias[courseResult.period.criteria]}: ${symbol == '$' ? '$' : ''}${courseResult.period.criteriaValue}${symbol == '%' ? '%' : ''})`;
+          cell.font = { bold: true };
+        }
+        const discount = p.discount || 0;
+        const originalAmount = p.value;
+        const key = `${originalAmount}-${discount}`;
+        
+        if (!paymentGroups[key]) {
+          paymentGroups[key] = {
+            count: 0,
+            amount: originalAmount,
+            discount: discount,
+            total: 0
+          };
+        }
+        
+        paymentGroups[key].count++;
+        paymentGroups[key].total += originalAmount;
+      });
+
+      // Add payment group rows
+      for (const group of Object.values(paymentGroups)) {
+        const paymentRow = worksheet.getRow(currentRow);
+        paymentRow.getCell(2).value = `${group.count} x $${group.amount} (${group.discount}%)`;
+        let total = 0;
+        if (isCriteriaByStudent(courseResult.criteria)) {
+          const criteriaValue = parseFloat(courseResult.criteriaValue);
+          if (group.discount !== null) {
+            total += criteriaValue * ( (100 - group.discount) / 100);
+          } else {
+            total += criteriaValue;
+          }
+          total = total * group.count;
+        } else {
+          const percentage = parseFloat(courseResult.criteriaValue);
+          const courseValue = courseResult.courseValue;
+          
+          const discount = group.discount ?? 0;
+          if (courseValue == null || courseValue == undefined) {
+            total += group.amount;
+          } else {
+            total += courseValue * (1 - (discount / 100));
+          }
+          total = (percentage / 100) * total;
+          total = total * group.count;
+        }
+        paymentRow.getCell(3).value = "$" + total;
+        currentRow++;
+      }
+      
+      // Add empty row between courses
+      currentRow++;
+    });
+    
+    // Auto-fit columns
+    worksheet.columns.forEach(column => {
+      column.width = 25;
+    });
+  });
+  
+  const buffer = await workbook.xlsx.writeBuffer();
+  return buffer;
 };
