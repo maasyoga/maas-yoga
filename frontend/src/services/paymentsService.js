@@ -115,11 +115,11 @@ export default {
                 })
         });
     },
-    editPayment(payment) {
+    editPayment(payment, sendReceipt) {
         return new Promise((resolve, reject) => {
             const baseUrl = process.env.REACT_APP_BACKEND_HOST;
             axios
-                .put(baseUrl + `api/v1/payments/${payment.id}`, payment)
+                .put(baseUrl + `api/v1/payments/${payment.id}${sendReceipt ? '?sendEmail=true' : ''}`, payment)
                 .then((response) => {
                     resolve(response.data);
                 })
@@ -387,7 +387,7 @@ export default {
         return new Promise((resolve, reject) => {
             const baseUrl = process.env.REACT_APP_BACKEND_HOST;
             axios
-                .put(baseUrl + `api/v1/payments/${paymentId}/verified`, {verified: true})
+                .put(baseUrl + `api/v1/payments/${paymentId}/verified`, {verified: true})
                 .then((response) => {
                     resolve(response.data);
                 })
@@ -396,5 +396,64 @@ export default {
                 })
         });
     },
-};
+    createMercadoPagoPreference(paymentData) {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            axios
+                .post(baseUrl + 'api/v1/payments/mercadopago/preference', paymentData)
+                .then((response) => {
+                    resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.response?.data || error.data)
+                })
+        });
+    },
 
+    generateMercadoPagoQR(qrData) {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            axios
+                .post(baseUrl + 'api/v1/payments/mercadopago/qr', qrData, {
+                    responseType: 'arraybuffer' // Para recibir la imagen como buffer
+                })
+                .then((response) => {
+                    resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.response?.data || error.data)
+                })
+        });
+    },
+
+    sendMercadoPagoEmail(emailData) {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            axios
+                .post(baseUrl + 'api/v1/payments/mercadopago/email', emailData)
+                .then((response) => {
+                    resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.response?.data || error.data)
+                })
+        });
+    },
+
+    exportPayments(query) {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            query = typeof query !== "string" ? query.join(SPECIFICATION_QUERY_SEPARATOR) : query;
+            axios
+                .get(baseUrl + 'api/v1/payments/export?q=' + query, {
+                    responseType: 'arraybuffer'
+                })
+                .then((response) => {
+                    resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.response?.data || error.data)
+                })
+        });
+    },
+};

@@ -5,9 +5,9 @@ import CommonTextArea from "../../../components/commonTextArea";
 import Modal from "../../../components/modal";
 import PaidIcon from '@mui/icons-material/Paid';
 import "react-datepicker/dist/react-datepicker.css";
-import { PAYMENT_OPTIONS } from "../../../constants";
+import { CASH_PAYMENT_TYPE, PAYMENT_OPTIONS } from "../../../constants";
 import dayjs from 'dayjs';
-import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import DateTimeInput from '../../calendar/dateTimeInput';
 import PaymentsTable from "../../../components/paymentsTable";
 import { Context } from "../../../context/Context";
 import SelectItem from "../../../components/select/selectItem";
@@ -22,12 +22,16 @@ import CustomCheckbox from "../../../components/checkbox/customCheckbox";
 import Select from "../../select/select";
 import SelectClass from "../../select/selectClass";
 import SelectColleges from "../../select/selectColleges";
-import ServicesCard from "../../servicesCard";
 import SelectProfessors from "../../select/selectProfessors";
 import WarningIcon from '@mui/icons-material/Warning';
+import InfoIcon from '@mui/icons-material/Info';
 import SelectCourses from "../../select/selectCourses";
 import SelectStudent from "../../select/selectStudent";
 import YellowBudget from "../../badget/yellow";
+import ButtonPrimary from "../../button/primary";
+import Label from "../../label/label";
+import { COLORS } from "../../../constants";
+import { Tooltip } from "@mui/material";
 
 export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }) {
     const [file, setFile] = useState([]);
@@ -47,7 +51,7 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
     const [fileId, setFileId] = useState(null);
     const [selectedProfessor, setSelectedProfessor] = useState(null);
     const [ammount, setAmmount] = useState(null);
-    const [addReceipt, setAddReceipt] = useState(false);
+    const addReceipt = useToggle(false);
     const [paymentMethod, setPaymentMethod] = useState(null);
     const [note, setNote] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -144,7 +148,6 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
                 operation: 'lt',
             }
         }
-        console.log(params);
         
         const data = await paymentsService.getAllPaymentsVerified(page, size, params, isOrOperation);
         if (initialData == null) {
@@ -329,7 +332,13 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
             setAmmount(payment.value)
             setSelectedStudent(payment.student);
         }
+        if (payment.headquarter) {
+            setSelectedCollege(payment.headquarter);
+        } else {
+            setSelectedCollege(null);
+        }
         const method = PAYMENT_OPTIONS.filter(type => type.value === payment.type);
+        
         setPaymentMethod(method[0]);
         setPaymentAt(dayjs(new Date(payment.at)));
         setOperativeResult(dayjs(new Date(payment.operativeResult)));
@@ -347,16 +356,13 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
     const downloadReceipt = async (paymentId) => {
         try {
             const blob = await generateReceipt(paymentId);
-            setAddReceipt(false);
-            console.log(blob, 'blob');
-            
-    
+            addReceipt.disable();
+
             if (!blob) throw new Error('Blob indefinido');
     
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            console.log(link, 'link', url, 'url');
             
             link.download = `recibo-${paymentId}.pdf`;
             document.body.appendChild(link);
@@ -373,12 +379,12 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
         const data = {
             itemId: selectedItem?.id,
             clazzId: (edit && selectedClazz !== null) ? selectedClazz.value : selectedClazz?.id,
-            headquarterId: (edit && selectedCollege !== null) ? selectedCollege.value :  selectedCollege?.value,
+            headquarterId: selectedCollege?.id ?? selectedCollege?.value ?? null,
             courseId: (edit && selectedCourse !== null) ? selectedCourse?.id : (isDischarge ? null : selectedCourse?.id),
             type: (edit && paymentMethod !== null) ? (paymentMethod.value || paymentMethod) : paymentMethod,
             fileId: edit ? paymentToEdit.fileId : fileId,
             value: edit ? getValue() : (isDischarge ? (ammount * -1).toFixed(3) : ammount),
-            studentId: (edit && selectedStudent !== null) ? selectedStudent.id : (isDischarge ? null : selectedStudent.id),
+            studentId: (edit && selectedStudent !== null) ? selectedStudent.id : (isDischarge ? null : selectedStudent?.id),
             professorId: selectedProfessor !== null ? selectedProfessor.id : (edit && paymentToEdit?.professorId !== null ? paymentToEdit.professorId : null),
             note: note,
             at: edit ? paymentAt : paymentAt.$d.getTime(),
@@ -392,16 +398,17 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
             delete data.courseId;
         }
         try{
+            const sendReceipt = addReceipt.value && selectedStudent?.email;
+            
             if(edit) {
                 data.id = paymentToEdit.id;
-                if(addReceipt) {
+                if(addReceipt.value) {
                     await downloadReceipt(data.id);
                 }
-                await editPayment(data);
+                await editPayment(data, sendReceipt);
             }else {
-                const sendReceipt = addReceipt && selectedStudent?.email;
                 const savedPayment = await informPayment(data, sendReceipt);
-                if(addReceipt && !selectedStudent?.email) {
+                if(addReceipt.value) {
                     await downloadReceipt(savedPayment.id);
                 }
             }
@@ -429,6 +436,7 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
         setFileId(null);
         setSelectedCourse(null);
         setSelectedStudent(null);
+        setRegistration(false);
         setSelectedClazz(null);
         setDiscount("");
         discountCheckbox.disable();
@@ -454,8 +462,6 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
         if(st?.courses?.length > 0) {
             setStudentCourses(st.courses);
         }
-        console.log(st);
-        
         setSelectedStudent(st);
     }
 
@@ -496,7 +502,7 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
 
     return (
         <>
-        <div className="mb-6 md:my-6 md:mx-4">
+        <div>
             <PaymentsTable
                 onSwitchDischarges={showIncomes.toggle}
                 onSwitchIncomes={showDischarges.toggle}
@@ -517,30 +523,37 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
                 defaultTypeValue={defaultTypeValue}
             />
         </div>
-        <Modal icon={<PaidIcon />} open={openModal} setDisplay={setDisplay} buttonText={isLoadingPayment ? (<><i className="fa fa-circle-o-notch fa-spin mr-2"></i><span>{edit ? 'Editando...' : 'Informando...'}</span></>) : <span>{edit ? 'Editar' : 'Informar'}</span>} onClick={handleInformPayment} title={isDischarge ? 'Informar egreso' : 'Informar ingreso'} children={<>
-        <div className="grid grid-cols-2 gap-10 pt-6 mb-4">
-        {!isDischarge && (<><div className="col-span-2 md:col-span-1">
-                <span className="block text-gray-700 text-sm font-bold mb-2">Seleccione la persona que realizó el pago</span>
-                <div className="mt-4">
-                    <SelectStudent
-                        onChange={handleChangeStudent}
-                        options={getOnlyStudentsOfSameCourse()}
-                        value={selectedStudent}
-                    />
-                </div>
+        <Modal
+            icon={<PaidIcon />}
+            open={openModal}
+            setDisplay={setDisplay}
+            size="large"
+            buttonText={isLoadingPayment ? (<><i className="fa fa-circle-o-notch fa-spin mr-2"></i><span>{edit ? 'Editando...' : 'Informando...'}</span></>) : <span>{edit ? 'Editar' : 'Informar'}</span>}
+            onClick={handleInformPayment}
+            title={isDischarge ? 'Informar egreso' : 'Informar ingreso'}
+        >
+        <div className="flex flex-col sm:grid sm:grid-cols-2 gap-6">
+        {!isDischarge && (<>
+            <div>
+                <Label htmlFor="student">Seleccione la persona que realizó el pago</Label>
+                <SelectStudent
+                    name="student"
+                    onChange={handleChangeStudent}
+                    options={getOnlyStudentsOfSameCourse()}
+                    value={selectedStudent}
+                />
             </div>
-            {(!selectedClazz && !selectedItem) && (<div className="col-span-2 md:col-span-1">
-                <span className="block text-gray-700 text-sm font-bold mb-2">Seleccione el curso que fue abonado</span>
-                <div className="mt-4">
-                    <SelectCourses
-                        onChange={setSelectedCourse}
-                        value={selectedCourse}
-                        options={(studentCourses.length > 0) ? studentCourses : null}
-                        defaultValue={selectedCourse}
-                    />
-                </div>
+            {(!selectedClazz && !selectedItem) && (<div>
+                <Label htmlFor="course">Seleccione el curso que fue abonado</Label>
+                <SelectCourses
+                    name="course"
+                    onChange={setSelectedCourse}
+                    value={selectedCourse}
+                    options={(studentCourses.length > 0) ? studentCourses : null}
+                    defaultValue={selectedCourse}
+                />
             </div>)}
-            <div className="col-span-2 pb-1">
+            <div className="col-span-2">
                 <CustomCheckbox
                     checked={registration}
                     labelOn="Corresponde a un pago de matrícula"
@@ -552,18 +565,19 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
         </>)}
             {(selectedCourse !== null && selectedStudent !== null) && 
                 <div className="col-span-2 md:col-span-2">
-                    <div className="flex items-center mb-2">
-                        <input onChange={discountCheckbox.toggle} name="discount" id="discount" type="checkbox" checked={discountCheckbox.value} value="discount" className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600" />
-                        <label htmlFor="discount" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-900">Aplicar descuento</label>
-                    </div>
+                    <CustomCheckbox
+                        checked={discountCheckbox.value}
+                        label="Aplicar descuento"
+                        onChange={discountCheckbox.toggle}
+                    />
                     <div>
                         <CommonInput 
                             disabled={!discountCheckbox.value}
                             label="Descuento"
-                            name="title"
-                            className="block font-bold text-sm text-gray-700 mb-2"
+                            name="discount"
                             type="number" 
-                            placeholder="0%" 
+                            symbol='%'
+                            placeholder="0" 
                             value={discount}
                             onChange={(e) => handleChangeDiscount(e.target.value)}
                         />
@@ -571,7 +585,7 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
                 </div>
             }
             {isDischarge &&
-                <div className="col-span-2 pb-1">
+                <div className="col-span-2">
                     <CustomCheckbox
                         checked={isSecretaryPayment}
                         labelOn="Corresponde a un pago de secretaria"
@@ -581,7 +595,7 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
                     />
                 </div>
             }
-            <div className="col-span-2 pb-1 -mt-4">
+            <div className="col-span-2">
                 <CustomCheckbox
                     checked={isClassPayment}
                     labelOn="Corresponde al pago de una clase"
@@ -590,202 +604,228 @@ export default function PaymentsSection({ defaultSearchValue, defaultTypeValue }
                     onChange={() => setIsClassPayment(!isClassPayment)}
                 />
             </div>
-            {isSecretaryPayment && <>
-            <div className="col-span-2 md:col-span-1 pb-1">
+            {isSecretaryPayment && 
+            <div className="flex flex-col gap-4 sm:grid sm:col-span-2 sm:grid-cols-2">
                 <CommonInput 
                     label="Sueldo"
                     name="Sueldo"
-                    className="block font-bold text-sm text-gray-700 mb-2"
                     type="number" 
+                    currency
                     placeholder="Sueldo" 
                     value={secretaryPaymentValues?.salary}
                     onChange={(e) => handleChangeSecretaryPaymentValue("salary", e.target.value)}
                 />
-            </div>
-            <div className="col-span-2 md:col-span-1 pb-1">
                 <CommonInput 
                     label="Monotributo"
                     name="Monotributo"
-                    className="block font-bold text-sm text-gray-700 mb-2"
                     type="number" 
+                    currency
                     placeholder="Monotributo" 
                     value={secretaryPaymentValues?.monotributo}
                     onChange={(e) => handleChangeSecretaryPaymentValue("monotributo", e.target.value)}
                 />
-            </div>
-            <div className="col-span-2 md:col-span-1 pb-1">
                 <CommonInput 
                     label="Tareas extra"
                     name="Tareas extra"
-                    className="block font-bold text-sm text-gray-700 mb-2"
                     type="number" 
+                    currency
                     placeholder="Tareas extra" 
                     value={secretaryPaymentValues?.extraTasks}
                     onChange={(e) => handleChangeSecretaryPaymentValue("extraTasks", e.target.value)}
                 />
-            </div>
-            <div className="col-span-2 md:col-span-1 pb-1">
                 <CommonInput 
                     label="Horas extra"
                     name="Horas extra"
-                    className="block font-bold text-sm text-gray-700 mb-2"
                     type="number" 
+                    currency
                     placeholder="Horas extra" 
                     value={secretaryPaymentValues?.extraHours}
                     onChange={(e) => handleChangeSecretaryPaymentValue("extraHours", e.target.value)}
                 />
-            </div>
-            <div className="col-span-2 pb-1">
                 <CommonInput 
                     label="S.A.C."
                     name="S.A.C."
-                    className="block font-bold text-sm text-gray-700 mb-2"
                     type="number" 
+                    currency
                     placeholder="S.A.C." 
                     value={secretaryPaymentValues?.sac}
                     onChange={(e) => handleChangeSecretaryPaymentValue("sac", e.target.value)}
                 />
-            </div>
-            </>}
+            </div>}
             {isClassPayment && 
                 <div className="col-span-2 md:col-span-2">
-                    <span className="block text-gray-700 text-sm font-bold mb-2">Profesor</span>
-                    <div className="mt-4">
-                        <SelectProfessors
-                            value={selectedProfessor}
-                            onChange={setSelectedProfessor}
-                            styles={{ menu: provided => ({ ...provided, zIndex: 2 }) }}
-                        />
-                    </div>
+                    <Label htmlFor="professor">Profesor</Label>
+                    <SelectProfessors
+                        name="professor"
+                        value={selectedProfessor}
+                        onChange={setSelectedProfessor}
+                        styles={{ menu: provided => ({ ...provided, zIndex: 2 }) }}
+                    />
                 </div>
             }
-            <div className="col-span-2 md:col-span-1 pb-1">
+            <div className="col-span-2 md:col-span-1">
                 <CommonInput 
                     label="Importe"
+                    currency
                     name="title"
-                    className="block font-bold text-sm text-gray-700 mb-2"
                     type="number" 
                     placeholder="Importe" 
                     value={ammount === null ? "": ammount}
                     onChange={handleChangeAmmount}
                 />
             </div>
-            <div className="col-span-2 md:col-span-1 pb-1">
-                <span className="block text-gray-700 text-sm font-bold mb-2">Modo de pago</span>
-                <div className="mt-2"><Select onChange={handleChangePayments} defaultValue={edit ? paymentMethod : {}} options={PAYMENT_OPTIONS} /></div>
-            </div>
-            {(paymentMethod === 'Efectivo') && (selectedCourse.id) && <div className="col-span-2 pb-1">
-                <CustomCheckbox
-                    label="Generar recibo"
-                    name="addReceipt"
-                    checked={addReceipt}
-                    onChange={setAddReceipt}
+            <div className="col-span-2 md:col-span-1">
+                <Label htmlFor="paymentType">Modo de pago</Label>
+                <Select
+                    name="paymentType"
+                    onChange={handleChangePayments}
+                    defaultValue={edit ? paymentMethod : {}}
+                    options={PAYMENT_OPTIONS}
                 />
-                {!selectedStudent?.email && <YellowBudget className="mt-2 w-full"><WarningIcon fontSize="small" className="mr-2"/>No se encontro email asociado al alumno, por lo que se podrá descargar el recibo pero el mismo no será enviado por correo.</YellowBudget>}
-            </div>}
-                <div className="col-span-2 md:col-span-2">
-                    <span className="block text-gray-700 text-sm font-bold mb-2">Sede</span>
-                    <div className="mt-4">
-                        <SelectColleges
-                            value={selectedCollege}
-                            onChange={setSelectedCollege}
-                            styles={{ menu: provided => ({ ...provided, zIndex: 2 }) }}
-                        />
-                    </div>
-                </div>
-            {isDischarge ?
-            <div className="col-span-2 md:col-span-2">
-                <span className="block text-gray-700 text-sm font-bold mb-2">Articulo</span>
-                <div className="mt-4"><SelectItem onChange={setSelectedItem} value={selectedItem} /></div>
             </div>
-            :
-            <>
-                 {(!selectedClazz && !selectedCourse) && (<div className="col-span-2 md:col-span-2">
-                    <span className="block text-gray-700 text-sm font-bold mb-2">Articulo</span>
-                    <div className="mt-4"><SelectItem onChange={setSelectedItem} value={selectedItem} /></div>
-                </div>)}
-                {(!selectedCourse && !selectedItem) && (<div className="col-span-2 md:col-span-2">
-                    <span className="block text-gray-700 text-sm font-bold mb-2">Clase</span>
-                    <div className="mt-4">
-                        <SelectClass
-                            onChange={setSelectedClazz}
-                            value={selectedClazz}
-                            getOptionValue ={(clazz)=> clazz.id}
+            {(paymentMethod === CASH_PAYMENT_TYPE || paymentMethod?.value === CASH_PAYMENT_TYPE) && (
+                <div className="col-span-2">
+                    <div className="flex items-center">
+                        <CustomCheckbox
+                            label="Generar recibo"
+                            name="addReceipt"
+                            checked={addReceipt.value}
+                            onChange={addReceipt.toggle}
                         />
+                        <Tooltip style={{ marginLeft: "-11px" }} className="text-gray-500" title="Se generará un comprobante de pago y el mismo será enviado por email al alumno que realizó el pago">
+                            <InfoIcon fontSize="small" />
+                        </Tooltip>
                     </div>
-                </div>)}
-            </>
-            }
+                    {!selectedStudent?.email && (
+                        <YellowBudget className="mt-2 w-full">
+                            <WarningIcon fontSize="small" className="mr-2" />No se encontro email asociado al alumno, por lo que se podrá descargar el recibo pero el mismo no será enviado por correo.
+                        </YellowBudget>
+                    )}
+                </div>
+            )}
             <div className="col-span-2 md:col-span-2">
-                <CommonTextArea 
+                <Label htmlFor="headquarter">Sede</Label>
+                <SelectColleges
+                    name="headquarter"
+                    value={selectedCollege}
+                    onChange={setSelectedCollege}
+                    styles={{ menu: provided => ({ ...provided, zIndex: 2 }) }}
+                />
+            </div>
+            {isDischarge ? (
+                <div className="col-span-2 md:col-span-2">
+                    <Label htmlFor="category">Articulo</Label>
+                    <SelectItem name="category" onChange={setSelectedItem} value={selectedItem} />
+                </div>
+            ) : (
+                <>
+                    {(!selectedClazz && !selectedCourse) && (
+                        <div className="col-span-2 md:col-span-2">
+                            <Label htmlFor="category">Articulo</Label>
+                            <SelectItem name="category" onChange={setSelectedItem} value={selectedItem} />
+                        </div>
+                    )}
+                    {(!selectedCourse && !selectedItem) && (
+                        <div className="col-span-2 md:col-span-2">
+                            <Label htmlFor="clazz">Clase</Label>
+                            <SelectClass
+                                name="clazz"
+                                onChange={setSelectedClazz}
+                                value={selectedClazz}
+                                getOptionValue={(clazz) => clazz.id}
+                            />
+                        </div>
+                    )}
+                </>
+            )}
+            <div className="col-span-2 md:col-span-2">
+                <CommonTextArea
                     label="Nota"
                     name="note"
-                    className="block font-bold text-sm text-gray-700 mb-4"
-                    type="textarea" 
-                    placeholder="Nota" 
+                    type="textarea"
+                    placeholder="Nota"
                     value={note}
                     onChange={handleChangeNote}
                 />
             </div>
-                <div className="col-span-2">
-                    <span className="block text-gray-700 text-sm font-bold mb-2">Fecha en que se realizo el pago</span>
-                    <div className="mt-4">
-                        <DateTimePicker
-                        label="Seleccionar fecha"
-                        value={paymentAt}
-                        onChange={(newValue) => setPaymentAt(newValue)}
-                        />
-                    </div>
-                </div>
-                <div className="col-span-2">
-                    <span className="block text-gray-700 text-sm font-bold mb-2">Resultado operativo</span>
-                    <div className="mt-4">
-                        <DateTimePicker
-                            label="Seleccionar fecha"
-                            value={operativeResult}
-                            onChange={(newValue) => setOperativeResult(newValue)}
-                        />
-                    </div>
-                </div>
-        </div>
-        {(edit && (paymentToEdit.file && (paymentToEdit.file !== null))) && (
-        <>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-                    Archivo
-            </label>
-            <div className="my-2 px-3 py-2 bg-orange-50 flex justify-between items-center rounded-sm w-auto">{paymentToEdit.file?.name}<button type="button" className="p-1 rounded-full bg-gray-100 ml-2" onClick={() => setPaymentToEdit({...paymentToEdit, file: null, fileId: null})}><CloseIcon /></button></div>
-        </>
-        )}
-        {!haveFile ? <>
-            <span className="block text-gray-700 text-sm font-bold mb-2">Seleccionar comprobante para respaldar la operación</span>
-            <div className="flex">
-                <StorageIconButton onClick={() => inputFileRef.current.click()} className="mr-2 min-icon-storage" icon="\assets\images\db.png" alt="google drive">Maas Yoga</StorageIconButton>
-                <input ref={inputFileRef} type="file" id="fileUpload" style={{ display: 'none' }} onChange={handleFileChange}></input>
-                {googleDriveEnabled &&
-                    <StorageIconButton onClick={handleOpenPicker} className="ml-2 min-icon-storage" icon="\assets\images\gdrive.png" alt="google drive">Google Drive</StorageIconButton>
-                }
+            <div className="col-span-2">
+                <DateTimeInput
+                    className="w-full sm:w-auto"
+                    name="paymentAt"
+                    label="Fecha en que se realizo el pago"
+                    value={paymentAt}
+                    onChange={(newValue) => setPaymentAt(newValue)}
+                />
             </div>
-        </>
-        :
-        (<><span className="block text-gray-700 text-sm font-bold mb-2">Nombre del archivo: {fileName}</span><div className="flex flex-rox gap-4"><button onClick={() => uploadFile(file)} className={`${driveFile !== null && "none"} mt-6 bg-orange-300 w-40 h-auto rounded-lg py-2 px-3 text-center shadow-lg flex justify-center items-center text-white hover:bg-orange-550`}>{isLoading ? (<><i className="fa fa-circle-o-notch fa-spin mr-2"></i><span>Subiendo...</span></>) : <span>Subir archivo</span>}</button><button onClick={() => deleteSelection()} className="mt-6 bg-orange-300 w-40 h-auto rounded-lg py-2 px-3 text-center shadow-lg flex justify-center items-center text-white hover:bg-orange-550">Eliminar selección</button></div></>)}
-        </>} 
-        />
-
-        <ServicesCard/>
-
-        <div className="flex flex-row justify-between">
-            <Link to="/home/professor-payments">
-                <div
-                    className="mr-4 mt-6 bg-orange-300 w-40 h-auto rounded-lg py-2 px-3 text-center text-white hover:bg-orange-550 whitespace-nowrap"><span className="font-bold text-sm text-yellow-900">Calcular pagos</span>
+            <div className="col-span-2">
+                <DateTimeInput
+                    className="w-full sm:w-auto"
+                    name="operativeResult"
+                    label="Resultado operativo"
+                    value={operativeResult}
+                    onChange={(newValue) => setOperativeResult(newValue)}
+                />
+            </div>
+            {(edit && paymentToEdit.file && paymentToEdit.file !== null) && (
+                <div className="col-span-2">
+                    <div className="sm:w-6/12">
+                        <Label>Archivo</Label>
+                        <div style={{ backgroundColor: COLORS.primary[50] }} className="my-2 px-3 py-2 flex justify-between items-center rounded-sm w-auto">
+                            {paymentToEdit.file?.name}
+                            <button
+                                type="button"
+                                className="p-1 rounded-full bg-gray-100 ml-2"
+                                onClick={() => setPaymentToEdit({ ...paymentToEdit, file: null, fileId: null })}
+                            >
+                                <CloseIcon />
+                            </button>
+                        </div>
+                    </div>
                 </div>
+            )}
+            {!haveFile ? (
+                <div>
+                    <Label>Seleccionar comprobante para respaldar la operación</Label>
+                    <div className="flex">
+                        <StorageIconButton onClick={() => inputFileRef.current.click()} className="min-icon-storage" icon="\assets\images\db.png" alt="maas yoga">Maas Yoga</StorageIconButton>
+                        <input ref={inputFileRef} type="file" id="fileUpload" style={{ display: 'none' }} onChange={handleFileChange} />
+                        {googleDriveEnabled && (
+                            <StorageIconButton onClick={handleOpenPicker} className="ml-2 min-icon-storage" icon="\assets\images\gdrive.png" alt="google drive">Google Drive</StorageIconButton>
+                        )}
+                    </div>
+                </div>
+            ) : (
+                <div>
+                    <Label>Nombre del archivo: {fileName}</Label>
+                    <div className="flex flex-rox gap-4">
+                        <ButtonPrimary onClick={() => uploadFile(file)} className={`${driveFile !== null && "none"} mt-4 w-full sm:w-40 h-auto`}>
+                            {isLoading ? (
+                                <>
+                                    <i className="fa fa-circle-o-notch fa-spin mr-2"></i>
+                                    <span>Subiendo...</span>
+                                </>
+                            ) : (
+                                <span>Subir archivo</span>
+                            )}
+                        </ButtonPrimary>
+
+                        <ButtonPrimary onClick={() => deleteSelection()} className="mt-4 w-full sm:w-40 h-auto">
+                            Eliminar selección
+                        </ButtonPrimary>
+                    </div>
+                </div>
+            )}
+        </div>
+        </Modal>
+
+
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-4 mt-4">
+            <Link to="/home/professor-payments">
+                <ButtonPrimary className={"w-full sm:w-auto"}>Calcular pagos</ButtonPrimary>
             </Link>
-            <div>
-                <button onClick={informDischarge}
-                    className="mr-4 mt-6 bg-orange-300 w-40 h-auto rounded-lg py-2 px-3 text-center text-white hover:bg-orange-550 whitespace-nowrap"><span className="font-bold text-sm text-yellow-900">Informar egreso</span>
-                </button>
-                <button onClick={() => setOpenModal(true)}
-                    className="mt-6 bg-orange-300 w-40 h-auto rounded-lg py-2 px-3 text-center text-white hover:bg-orange-550 whitespace-nowrap"><span className="font-bold text-sm text-yellow-900">Informar ingreso</span>
-                </button>
+            <div className="flex gap-4">
+                <ButtonPrimary className={"sm:mr-4 w-full sm:w-auto"} onClick={informDischarge}>Informar egreso</ButtonPrimary>
+                <ButtonPrimary className={"w-full sm:w-auto"} onClick={() => setOpenModal(true)}>Informar ingreso</ButtonPrimary>
             </div>
         </div>
         </>

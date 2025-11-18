@@ -1,20 +1,21 @@
 import React, { useEffect, useState, useContext, useMemo } from "react";
 import Table from "../table";
-import DeleteIcon from '@mui/icons-material/Delete';
 import { Context } from "../../context/Context";
 import { dateToString, formatPaymentValue } from "../../utils";
-import DoneIcon from '@mui/icons-material/Done';
 import { TABLE_SEARCH_CRITERIA } from "../../constants";
-import EditIcon from '@mui/icons-material/Edit';
 import CustomCheckbox from "../checkbox/customCheckbox";
+import PaidIcon from '@mui/icons-material/Paid';
 import TableSummary from '../table/summary'
-import { Tooltip } from "@mui/material";
 import VerifyPaymentModal from "../modal/verifyPaymentModal";
 import useModal from "../../hooks/useModal";
 import DeletePaymentModal from "../modal/deletePaymentModal";
-import Spinner from "../spinner/spinner";
+import DeleteButton from "../button/deleteButton";
+import EditButton from "../button/editButton";
+import VerifyButton from "../button/verifyButton";
+import NoDataComponent from "../table/noDataComponent";
+import DownloadButton from "../button/downloadButton";
 
-export default function PaymentsTable({ summary = null, pageableProps = null, columnsProps = [], dateField = "at", className = "",
+export default function PaymentsTable({ tableFooter, summary = null, pageableProps = null, columnsProps = [], dateField = "at", className = "",
     payments, defaultSearchValue, defaultTypeValue, isLoading, canVerify, editPayment, editMode, onClickDeletePayment, 
     onClickVerifyPayment, onSwitchDischarges = () => console.log("no implementado"), onSwitchIncomes = () => console.log("no implementado") }) {
     const { user, changeAlertStatusAndMessage, getUserById } = useContext(Context);
@@ -271,33 +272,14 @@ export default function PaymentsTable({ summary = null, pageableProps = null, co
                 selector: row => getVerifierUserFullName(row),
             },
             {
-                name: 'Comprobante',
-                cell: row => (<>{(row.fileId !== null || row.driveFileId !== null) &&<a href={row.fileId !== null ? `${process.env.REACT_APP_BACKEND_HOST}api/v1/files/${row.fileId}` : `#`} onClick={() => handleDownloadGoogleDrive(row)} className="bg-orange-300 w-40 h-auto rounded-lg py-2 px-3 text-center text-white hover:bg-orange-550 whitespace-nowrap">Obtener comprobante
-                </a>}</>),
-                sortable: true,
-            },
-            {
                 name: 'Acciones',
                 cell: row => (<>
                     <div className="flex w-full justify-center">
-                        <Tooltip title="Eliminar">
-                            <button className="rounded-full p-1 bg-red-200 hover:bg-red-300 mx-1" onClick={() => openDeleteModal(row)}>
-                                <DeleteIcon />
-                            </button>
-                        </Tooltip>
-                        {canVerify && (
-                            <Tooltip title="Verificar">
-                                <button className={`rounded-full p-1 bg-green-200 hover:bg-green-300 mx-1 ${row.verified ? "invisible" : ""}`} onClick={() => openVerifyModal(row)}>
-                                    <DoneIcon />
-                                </button>
-                            </Tooltip>)
+                        {(row.fileId !== null || row.driveFileId !== null) &&<a href={row.fileId !== null ? `${process.env.REACT_APP_BACKEND_HOST}api/v1/files/${row.fileId}` : `#`} onClick={() => handleDownloadGoogleDrive(row)}><DownloadButton /></a>}
+                        <DeleteButton onClick={() => openDeleteModal(row)} />
+                        {canVerify && (<VerifyButton invisible={row.verified} onClick={() => openVerifyModal(row)} />)
                         }
-                        {editMode && (
-                            <Tooltip title="Editar">
-                                <button className="rounded-full p-1 bg-orange-200 hover:bg-orange-300 mx-1" onClick={() => openEditModal(row)}>
-                                    <EditIcon />
-                                </button>
-                            </Tooltip>)
+                        {editMode && (<EditButton onClick={() => openEditModal(row)}/>)
                         }
                     </div></>),
                 sortable: true,
@@ -326,7 +308,7 @@ export default function PaymentsTable({ summary = null, pageableProps = null, co
         setFilteredPayments(payments);
     }, [])
 
-    const updateTableSummary = payments =>  {
+    const updateTableSummary = (payments = []) =>  {
         setTableSummary({// Si quien invoca el componente no pasa el parametro 'summary' entonces se calcula con el array de pagos
             total: getBalanceForAllPayments(payments),
             incomes: getPayments(payments),
@@ -358,7 +340,8 @@ export default function PaymentsTable({ summary = null, pageableProps = null, co
         className: `rounded-3xl shadow-lg ${className}`,
         columns: columns,
         paginationRowsPerPageOptions: [5, 10, 25, 50, 100],
-        noDataComponent: isLoading ? 'Verificando pagos...' : 'No hay pagos disponibles',
+        progressPending: isLoading,
+        noDataComponent: <NoDataComponent Icon={PaidIcon} title="No hay pagos" subtitle="No se encontraron pagos con el criterio seleccionado" />,
         pagination: true,
     }
 
@@ -368,8 +351,6 @@ export default function PaymentsTable({ summary = null, pageableProps = null, co
             ...pageableProps,
             serverPaginationData: payments,
             paginationServer: true,
-            progressPending: isLoading,
-            progressComponent: <Spinner/>,
         }
     } else {
         tableProps = {
@@ -384,12 +365,11 @@ export default function PaymentsTable({ summary = null, pageableProps = null, co
     return(
         <>
             <Table {...tableProps} />
-            <div className="flex flex-row my-4">
+            <div className="flex flex-col sm:flex-row my-4">
                 <CustomCheckbox
                     checked={showDischarges}
                     labelOn="Mostrar egresos"
                     labelOff="Mostrar egresos"
-                    className="ml-2"
                     disabled={showIncomes}
                     onChange={() => {onSwitchIncomes(!showDischarges);setShowDischarges(!showDischarges)}}
                 />
@@ -397,7 +377,7 @@ export default function PaymentsTable({ summary = null, pageableProps = null, co
                     checked={showIncomes}
                     labelOn="Mostrar ingresos"
                     labelOff="Mostrar ingresos"
-                    className="ml-2"
+                    className="sm:ml-2"
                     disabled={showDischarges}
                     onChange={() => {onSwitchDischarges(!showIncomes);setShowIncomes(!showIncomes)}}
                 />      
@@ -405,9 +385,10 @@ export default function PaymentsTable({ summary = null, pageableProps = null, co
                     checked={showOpResultDate}
                     labelOn="Motrar fecha operativa"
                     labelOff="Mostrar fecha operativa"
-                    className="ml-2"
+                    className="sm:ml-2"
                     onChange={() => setShowOpResultDate(!showOpResultDate)}
                 /> 
+                {tableFooter}
             </div>
             <TableSummary total={summary != null ? summary.total : tableSummary.total} incomes={summary != null ? summary.incomes : tableSummary.incomes} expenses={summary != null ? summary.expenses : tableSummary.expenses}/>
             <DeletePaymentModal payment={payment} isOpen={deletePaymentModal.isOpen} onClose={handleOnCloseDeletePaymentModal}/>

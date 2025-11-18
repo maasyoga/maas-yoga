@@ -4,26 +4,29 @@ import SchoolIcon from '@mui/icons-material/School';
 import { useFormik } from 'formik';
 import CommonInput from "../components/commonInput";
 import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
 import Table from "../components/table";
 import { Context } from "../context/Context";
 import Container from "../components/container";
+import NoDataComponent from "../components/table/noDataComponent";
 import PlusButton from "../components/button/plus";
 import PendingPaymentsModal from "../components/modal/pendingPaymentsModal";
 import ButtonPrimary from "../components/button/primary";
 import { useNavigate } from "react-router-dom";
 import studentsService from "../services/studentsService";
-import Spinner from "../components/spinner/spinner";
 import useToggle from "../hooks/useToggle";
+import Loader from "../components/spinner/loader";
+import DeleteButton from "../components/button/deleteButton";
+import EditButton from "../components/button/editButton";
+import { COLORS } from "../constants";
 
 export default function Students(props) {
-    const { students, isLoadingStudents, deleteStudent, editStudent, newStudent, changeAlertStatusAndMessage } = useContext(Context);
+    const { deleteStudent, editStudent, newStudent, changeAlertStatusAndMessage } = useContext(Context);
     const [displayModal, setDisplayModal] = useState(false);
     const isLoading = useToggle();
     const [deleteModal, setDeleteModal] = useState(false);
     const navigate = useNavigate(); 
     const [studentId, setStudentId] = useState(null);
-    const [opResult, setOpResult] = useState('Verificando alumnos...');
+    const [studentToDelete, setStudentToDelete] = useState(null);
     const [edit, setEdit] = useState(false);
     const [studentToEdit, setStudentToEdit] = useState({});
     const [isDocumentDuplicated, setIsDocumentDuplicated] = useState(false);
@@ -108,9 +111,10 @@ export default function Students(props) {
         setEdit(false);
     }
 
-    const openDeleteModal = (id) => {
+    const openDeleteModal = (student) => {
         setDeleteModal(true);
-        setStudentId(id);
+        setStudentId(student.id);
+        setStudentToDelete(student);
     }
 
     const openEditModal = async (student) => {
@@ -124,6 +128,9 @@ export default function Students(props) {
         isLoading.enable()
         try{
             await deleteStudent(studentId);
+            setTimeout(() => {
+                fetchStudents();
+            }, 150);
         }catch {
             changeAlertStatusAndMessage(true, 'error', 'El estudiante no pudo ser eliminado... Por favor inténtelo nuevamente.')
         }
@@ -137,7 +144,7 @@ export default function Students(props) {
             serverOperation: 'iLike',
             name: 'Nombre',
             selector: row => row.name,
-            cell: row => <div className="underline text-yellow-900 mx-1 cursor-pointer" onClick={() => navigate(`/home/students/${row.id}`)}>{row.name}</div>,
+            cell: row => <div style={{ color: COLORS.primary[900] }} className="underline mx-1 cursor-pointer" onClick={() => navigate(`/home/students/${row.id}`)}>{row.name}</div>,
             sortable: true,
             searchable: true,
         },
@@ -161,9 +168,9 @@ export default function Students(props) {
             cell: row => {return (<><div className="flex flex-col justify-center">
             <div className="relative py-3 sm:max-w-xl sm:mx-auto">
               <div className="group cursor-pointer relative inline-block">{row.email}
-                <div className="opacity-0 w-28 bg-orange-200 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
+                <div style={{ backgroundColor: COLORS.primary[200] }} className="opacity-0 w-28 text-gray-700 text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 bottom-full -left-1/2 ml-14 px-3 pointer-events-none">
                   {row.email}
-                  <svg className="absolute text-orange-200 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                  <svg className="absolute h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon fill={COLORS.primary[200]} points="0,0 127.5,127.5 255,0"/></svg>
                 </div>
               </div>
             </div>
@@ -179,8 +186,7 @@ export default function Students(props) {
         },
         {
             name: 'Acciones',
-            cell: row => { return (<div className="flex-row"><button className="rounded-full p-1 bg-red-200 hover:bg-red-300 mx-1" onClick={() => openDeleteModal(row.id)}><DeleteIcon /></button><button className="rounded-full p-1 bg-orange-200 hover:bg-orange-300 mx-1" onClick={() => openEditModal(row)}><EditIcon /></button></div>)
-        },
+            cell: row => (<div className="flex-row"><DeleteButton onClick={() => openDeleteModal(row)}/><EditButton onClick={() => openEditModal(row)} /></div>),
             sortable: true,
         },
     ], []);
@@ -207,8 +213,14 @@ export default function Students(props) {
             if(edit) {
                 await editStudent(studentId, body);
                 setEdit(false);
+                setTimeout(() => {
+                    fetchStudents();
+                }, 150);
             }else {
                 await newStudent(body);
+                setTimeout(() => {
+                    fetchStudents();
+                }, 150);
             }
             resetForm();
             isLoading.disable()
@@ -238,16 +250,15 @@ export default function Students(props) {
                     columns={columns}
                     serverPaginationData={pageableStudents}
                     paginationServer
-                    noDataComponent={opResult}
+                    noDataComponent={<NoDataComponent Icon={SchoolIcon} title="No hay alumnos" subtitle="No se encontraron alumnos registrados"/>}
                     progressPending={isLoading.value}
-                    progressComponent={<Spinner/>}
                     paginationTotalRows={totalRows}
                     onChangePage={handlePageChange}
                     onChangeRowsPerPage={handlePerRowsChange}
                     paginationDefaultPage={currentPage}
                     pagination paginationRowsPerPageOptions={[5, 10, 25, 50, 100]}
                 />
-                <div className="flex justify-between mt-6">
+                <div className="flex justify-between mt-6 items-center">
                     <div>
                         <ButtonPrimary onClick={switchPendingPaymentsModal}>Ver alumnos deudores</ButtonPrimary>
                     </div>
@@ -255,91 +266,81 @@ export default function Students(props) {
                 </div>
                 <PendingPaymentsModal isOpen={isOpenPendingPaymentsModal} onClose={switchPendingPaymentsModal}/>
                 <Modal buttonDisabled={isDocumentDuplicated || isEmailDuplicated || isPhoneNumberDuplicated} icon={<SchoolIcon />} open={displayModal} setDisplay={setDisplay} title={edit ? 'Editar alumno' : 'Agregar alumno'} buttonText={isLoading.value ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">{edit ? 'Editando...' : 'Agregando...'}</span></>) : <span>{edit ? 'Editar' : 'Agregar'}</span>} onClick={formik.handleSubmit} children={<>
-                    <form className="pt-6 mb-4"    
+                    <form
+                        className="flex flex-col sm:grid sm:grid-cols-2 gap-6"
                         method="POST"
                         id="form"
                         onSubmit={formik.handleSubmit}
                     >
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="mb-4">
-                                <CommonInput 
-                                    label="Nombre"    
-                                    onBlur={formik.handleBlur}
-                                    value={formik.values.name}
-                                    name="name"
-                                    htmlFor="name"
-                                    id="name" 
-                                    type="text" 
-                                    placeholder="Nombre" 
-                                    onChange={formik.handleChange}
-                                />
-                            </div>
-                            <div className="mb-4">
-                            <CommonInput 
-                                    label="Apellido"    
-                                    onBlur={formik.handleBlur}
-                                    value={formik.values.surname}
-                                    name="surname"
-                                    htmlFor="surname"
-                                    id="surname" 
-                                    type="text" 
-                                    placeholder="Apellido"
-                                    onChange={formik.handleChange}
-                            />
-                            </div>
-                            <div className="mb-4">
-                            <CommonInput 
-                                    label="Documento"    
-                                    onBlur={() => checkDuplicated("document", () => setIsDocumentDuplicated(true))}
-                                    onFocus={() => setIsDocumentDuplicated(false)}
-                                    isInvalid={isDocumentDuplicated}
-                                    invalidMessage={"Documento ya registrado"}
-                                    value={formik.values.document}
-                                    name="document"
-                                    htmlFor="document"
-                                    id="document" 
-                                    type="number" 
-                                    placeholder="Documento"
-                                    onChange={formik.handleChange}
-                            />
-                            </div>
-                            <div className="mb-4">
-                                <CommonInput 
-                                    label="Email"    
-                                    onBlur={() => checkDuplicated("email", () => setIsEmailDuplicated(true))}
-                                    onFocus={() => setIsEmailDuplicated(false)}
-                                    isInvalid={isEmailDuplicated}
-                                    invalidMessage={"Email ya registrado"}
-                                    value={formik.values.email}
-                                    name="email"
-                                    htmlFor="email"
-                                    id="email" 
-                                    type="text" 
-                                    placeholder="Email" 
-                                    onChange={formik.handleChange}
-                                />
-                            </div>
-                            <div className="mb-4">
-                            <CommonInput 
-                                    label="Numero de telefono"    
-                                    onBlur={() => checkDuplicated("phoneNumber", () => setIsPhoneNumberDuplicated(true))}
-                                    onFocus={() => setIsPhoneNumberDuplicated(false)}
-                                    isInvalid={isPhoneNumberDuplicated}
-                                    invalidMessage={"Numero ya registrado"}
-                                    value={formik.values.phoneNumber}
-                                    name="phoneNumber"
-                                    htmlFor="phoneNumber"
-                                    id="phoneNumber" 
-                                    type="number" 
-                                    placeholder="Numero de telefono"
-                                    onChange={formik.handleChange}
-                            />
-                            </div>
-                        </div>
+                        <CommonInput 
+                            label="Nombre"    
+                            onBlur={formik.handleBlur}
+                            value={formik.values.name}
+                            name="name"
+                            htmlFor="name"
+                            id="name" 
+                            type="text" 
+                            placeholder="Nombre" 
+                            onChange={formik.handleChange}
+                        />
+                    
+                        <CommonInput 
+                            label="Apellido"    
+                            onBlur={formik.handleBlur}
+                            value={formik.values.surname}
+                            name="surname"
+                            htmlFor="surname"
+                            id="surname" 
+                            type="text" 
+                            placeholder="Apellido"
+                            onChange={formik.handleChange}
+                        />
+                        <CommonInput 
+                            label="Documento"    
+                            onBlur={() => checkDuplicated("document", () => setIsDocumentDuplicated(true))}
+                            onFocus={() => setIsDocumentDuplicated(false)}
+                            isInvalid={isDocumentDuplicated}
+                            invalidMessage={"Documento ya registrado"}
+                            value={formik.values.document}
+                            name="document"
+                            htmlFor="document"
+                            id="document" 
+                            type="number" 
+                            placeholder="Documento"
+                            onChange={formik.handleChange}
+                        />
+                        <CommonInput 
+                            label="Email"    
+                            onBlur={() => checkDuplicated("email", () => setIsEmailDuplicated(true))}
+                            onFocus={() => setIsEmailDuplicated(false)}
+                            isInvalid={isEmailDuplicated}
+                            invalidMessage={"Email ya registrado"}
+                            value={formik.values.email}
+                            name="email"
+                            htmlFor="email"
+                            id="email" 
+                            type="text" 
+                            placeholder="Email" 
+                            onChange={formik.handleChange}
+                        />
+                        <CommonInput 
+                            label="Numero de telefono"    
+                            onBlur={() => checkDuplicated("phoneNumber", () => setIsPhoneNumberDuplicated(true))}
+                            onFocus={() => setIsPhoneNumberDuplicated(false)}
+                            isInvalid={isPhoneNumberDuplicated}
+                            invalidMessage={"Numero ya registrado"}
+                            value={formik.values.phoneNumber}
+                            name="phoneNumber"
+                            htmlFor="phoneNumber"
+                            id="phoneNumber" 
+                            type="number" 
+                            placeholder="Numero de telefono"
+                            onChange={formik.handleChange}
+                        />
                     </form>
                 </>
                 } />
-                <Modal icon={<DeleteIcon />} open={deleteModal} setDisplay={setDisplay} title="Eliminar alumno" buttonText={isLoading.value ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">Eliminando...</span></>) : <span>Eliminar</span>} onClick={handleDeleteStudent} children={<><div>Esta a punto de elimnar este alumno. ¿Desea continuar?</div></>} />
+                <Modal danger icon={<DeleteIcon />} open={deleteModal} setDisplay={setDisplay} title="Eliminar alumno" buttonText={isLoading.value ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">Eliminando...</span></>) : <span>Eliminar</span>} onClick={handleDeleteStudent} children={<><div>Esta a punto de eliminar al alumno <strong>{studentToDelete?.name || 'este alumno'}</strong>. ¿Desea continuar?</div></>} />
             </Container>
         </>
     );

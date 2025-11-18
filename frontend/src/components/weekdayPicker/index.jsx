@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import styles from "./weekday.module.css";
-import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import { getPrettyClassDaysString, twoDigits } from '../../utils';
 import * as dayjs from 'dayjs'
+import Label from '../label/label';
+import TimeInput from '../calendar/timeInput';
 
 export default function WeekdayPicker({ days, setDays }) {
   const [lastSelectedDay, setLastSelectedDay] = useState(null);
   const [selectedDays, setSelectedDays] = useState([]);
   
-  const handleClick = (day) => {
+  const handleClick = (day, e) => {
+    e.preventDefault()
     setDays(current => current.map(d => {
       if (d.key === day.key) {
         d.isSelected = !d.isSelected;
@@ -56,7 +58,7 @@ export default function WeekdayPicker({ days, setDays }) {
     <div>
       <div className='flex justify-between w-full'>
         {days.map(day => 
-          <button key={day.key} onClick={() => handleClick(day)} className={`${styles.button}`}>
+          <button key={day.key} onClick={(e) => handleClick(day, e)} className={`${styles.button}`}>
             <div className={`${styles.textContainer} ${day.isSelected && styles.buttonSelected}`}>
               <span className='font-bold'>{day.label}</span>
               {(day.startAt !== null && day.endAt !== null) && (<div className='hidden sm:flex flex-col text-xs hidden'><span>{day.startAt}</span><span>{day.endAt}</span></div>)}
@@ -69,19 +71,17 @@ export default function WeekdayPicker({ days, setDays }) {
           <h2 className="text-xl md:text-2xl text-center mb-2 sm:mb-4">{lastSelectedDay.completeLabel}</h2>
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
             <div className='flex flex-col'>
-              <label htmlFor='start-at-date-time'>Empieza</label>
-              <TimePicker
-                id="start-at-date-time"
-                format="HH:mm"
-                ampm={false}
+              <Label htmlFor='start-at-date-time'>Empieza</Label>
+              <TimeInput
+                name="start-at-date-time"
                 value={parseTimeToDayJs(lastSelectedDay.startAt)}
                 onChange={(newValue) => handleChangeTime(newValue, "startAt")}
               />
             </div>
             <div className='flex flex-col'>
-              <label>Termina</label>
-              <TimePicker
-                ampm={false}
+              <Label htmlFor='end-at-date-time'>Termina</Label>
+              <TimeInput
+                name="end-at-date-time"
                 value={parseTimeToDayJs(lastSelectedDay.endAt)}
                 onChange={(newValue) => handleChangeTime(newValue, "endAt")}
               />

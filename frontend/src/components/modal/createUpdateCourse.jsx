@@ -1,19 +1,20 @@
 import React, { useContext, useEffect, useState } from 'react'
 import Modal from '../modal'
 import { useFormik } from 'formik';
-import { DemoContainer } from '@mui/x-date-pickers/internals/demo';
 import CommonInput from '../commonInput';
 import LocalLibraryIcon from '@mui/icons-material/LocalLibrary';
-import { DateTimePicker } from '@mui/x-date-pickers';
+import DateTimeInput from '../calendar/dateTimeInput';
 import useToggle from '../../hooks/useToggle';
 import dayjs from 'dayjs';
 import CloseIcon from '@mui/icons-material/Close';
 import { Context } from '../../context/Context';
 import CustomCheckbox from '../checkbox/customCheckbox';
 import PlusButton from '../button/plus';
-import ProfessorInfo from '../courses/professorInfo'
-import EditIcon from '@mui/icons-material/Edit';
+import ProfessorInfo from '../courses/professorInfo';
 import SelectStudent from '../select/selectStudent';
+import EditButton from '../button/editButton';
+import Label from '../label/label';
+import { COLORS } from '../../constants';
 
 
 const CreateUpdateCourseModal = ({ onClose, isOpen, courseToEdit, onFinish }) => {
@@ -125,128 +126,106 @@ const CreateUpdateCourseModal = ({ onClose, isOpen, courseToEdit, onFinish }) =>
 			title={edit ? 'Editar curso' : 'Agregar curso'}
 			buttonText={isLoading ? (<><i className="fa fa-circle-o-notch fa-spin"></i><span className="ml-2">{edit ? 'Editando...' : 'Agregando...'}</span></>) : <span>{edit ? 'Editar' : 'Agregar'}</span>}
 		>
-			<form className="pt-6 mb-4"
+			<form className="flex flex-col sm:grid sm:grid-cols-2 gap-6"
 				method="POST"
 				id="form"
 				onSubmit={formik.handleSubmit}
 			>
-				<div className={`mb-4 relative col-span-2`}>
-					<label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
-							Fecha de inicio
-					</label>
-					<DemoContainer components={['DateTimePicker', 'DateTimePicker']}>
-						<DateTimePicker
-							label="Seleccionar fecha"
-							value={startAt}
-							onChange={setStartAt}
-						/>
-					</DemoContainer>
-				</div>
-				<div className={`mb-4 relative col-span-2 ${isCircular.value && "hidden"}`}>
-					<label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
-							Fecha de finalizacion
-					</label>
-					<DemoContainer components={['DateTimePicker', 'DateTimePicker']}>
-						<DateTimePicker
-								label="Seleccionar fecha"
-								value={endAt}
-								onChange={setEndAt}
-						/>
-					</DemoContainer>
-				</div>
-				<div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-					<CustomCheckbox
-						checked={needsRegistration.value}
-						labelOn="Posee matrícula"
-						labelOff="Posee matrícula"
-						className="ml-2"
-						onChange={needsRegistration.toggle}
-					/>
-					<CustomCheckbox
-						checked={isCircular.value}
-						labelOn="Es circular"
-						labelOff="Es circular"
-						className="ml-2"
-						onChange={isCircular.toggle}
+				<div className='relative sm:col-span-2'>
+					<DateTimeInput
+						className="w-full sm:w-auto"
+						name="startAt"
+						label="Fecha de inicio"
+						value={startAt}
+						onChange={setStartAt}
 					/>
 				</div>
-				<div className="grid grid-cols-2 gap-4">
-					<div className="mb-4">
-						<CommonInput
-							label="Título"
-							onBlur={formik.handleBlur}
-							value={formik.values.title}
-							name="title"
-							htmlFor="title"
-							id="title"
-							type="text"
-							placeholder="Título"
-							onChange={formik.handleChange}
-						/>
-					</div>
-					<div className="mb-4">
-						<CommonInput
-							label="Descripción"
-							onBlur={formik.handleBlur}
-							value={formik.values.description}
-							name="description"
-							htmlFor="description"
-							id="description"
-							type="text"
-							placeholder="Descripción"
-							onChange={formik.handleChange}
-						/>
-					</div>
+				<div className={`relative sm:col-span-2 ${isCircular.value && "hidden"}`}>
+					<DateTimeInput
+						className="w-full sm:w-auto"
+						name="endAt"
+						label="Fecha de finalizacion"
+						value={endAt}
+						onChange={setEndAt}
+					/>
 				</div>
-				<div className="mb-4">
-					<label className="block text-gray-700 text-sm font-bold mb-2">
-						Asignar alumnos
-					</label>
+				<CustomCheckbox
+					checked={needsRegistration.value}
+					labelOn="Posee matrícula"
+					labelOff="Posee matrícula"
+					onChange={needsRegistration.toggle}
+				/>
+				<CustomCheckbox
+					checked={isCircular.value}
+					labelOn="Es circular"
+					labelOff="Es circular"
+					onChange={isCircular.toggle}
+				/>
+				<div className="flex flex-col sm:grid sm:grid-cols-2 sm:col-span-2 gap-6">
+					<CommonInput
+						label="Título"
+						onBlur={formik.handleBlur}
+						value={formik.values.title}
+						name="title"
+						htmlFor="title"
+						id="title"
+						type="text"
+						placeholder="Título"
+						onChange={formik.handleChange}
+					/>
+					<CommonInput
+						label="Descripción"
+						onBlur={formik.handleBlur}
+						value={formik.values.description}
+						name="description"
+						htmlFor="description"
+						id="description"
+						type="text"
+						placeholder="Descripción"
+						onChange={formik.handleChange}
+					/>
+				</div>
+				<div className='sm:col-span-2'>
+					<Label htmlFor='assignStudents'>Asignar alumnos</Label>
 					<SelectStudent
+						name="assignStudents"
 						className="z-100"
 						isMulti
 						onChange={handleChangeStudents}
 						defaultValue={(edit && (courseToEdit.students)) ? courseToEdit.students : []}
 					/>
 				</div>
-				{courseProfessors.length > 0 && (<>
-						<label className="block text-gray-700 text-sm font-bold mb-2">
-							Profesores
-						</label>
-						{courseProfessors.map((prf, index) =>
-							<div key={index} className="my-1 px-3 py-2 bg-orange-50 flex justify-between items-center rounded-sm w-auto">
-								<div>{prf.professor?.name} {prf.professor?.lastName}</div>
-								<div>{edit && <button
-												type="button"
-												className="p-1 rounded-full bg-orange-200 ml-2"
-												onClick={() => { setPeriodToEdit(prf); setNewProfessor(true) }}
-											>
-												<EditIcon />
-											</button>
-									}
-									<button
-										type="button"
-										className="p-1 rounded-full bg-gray-100 ml-2"
-										onClick={() => removeCourseProfessor(prf)}
-									>
-										<CloseIcon />
-									</button>
+				{courseProfessors.length > 0 && (<div className='col-span-2'>
+						<Label>Profesores</Label>
+						<div className='flex flex-col gap-2'>
+							{courseProfessors.map((prf, index) =>
+								<div key={index} style={{ backgroundColor: COLORS.primary[50] }} className="px-3 py-2 flex justify-between items-center rounded-sm w-auto">
+									<div>{prf.professor?.name} {prf.professor?.lastName}</div>
+									<div>{edit && <EditButton onClick={() => { setPeriodToEdit(prf); setNewProfessor(true) }}/>} 
+										<button
+											type="button"
+											className="rounded-full p-1 bg-gray-100 hover:bg-gray-200 hover:shadow-md mx-1 transition-all duration-200 ease-in-out transform ml-2"
+											onClick={() => removeCourseProfessor(prf)}
+										>
+											<CloseIcon />
+										</button>
+									</div>
 								</div>
-							</div>
-						)}
-					</>
+							)}
+						</div>
+					</div>
 				)}
 				{!newProfessor && (
-					<div className="mb-4 mt-2 flex items-center justify-start">
-						<label className="block text-gray-700 text-sm font-bold">
-							Nuevo profesor
-						</label>
-						<PlusButton fontSize="large" className="w-8 h-8 mt-0 ml-3" onClick={() => setNewProfessor(true)} />
+					<div className="flex items-center justify-start">
+						<Label>Nuevo profesor</Label>
+						<PlusButton size="small" className="ml-3" onClick={() => setNewProfessor(true)} />
 					</div>)
 				}
 				{newProfessor && (
 					<ProfessorInfo
 						edit={edit}
+						minStartAt={startAt}
+						maxEndAt={isCircular.value ? undefined : endAt}
 						periodToEdit={periodToEdit}
 						editProfessor={(v, idx) => editPeriod(v, idx)}
 						closeNewProfessor={(value) => { setNewProfessor(value); setPeriodToEdit({}) }}

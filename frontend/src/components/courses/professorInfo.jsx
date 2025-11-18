@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { DemoContainer } from '@mui/x-date-pickers/internals/demo';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import CommonInput from "../commonInput";
 import dayjs from 'dayjs';
 import { dateToYYYYMMDD, splitDate } from "../../utils";
 import SelectProfessors from "../select/selectProfessors";
+import DateInput from "../calendar/dateInput";
+import Label from "../label/label";
+import CustomCheckbox from "../checkbox/customCheckbox";
+import CustomRadio from "../radio/customRadio";
+import ButtonPrimary from "../button/primary";
+import ButtonSecondary from "../button/secondary";
 
 export default function ProfessorInfo(props) {
     const [startAt, setStartAt] = useState(dayjs(new Date()));
@@ -86,77 +90,91 @@ export default function ProfessorInfo(props) {
     
 
     return (
-        <div className="my-3 bg-gray-100 p-3 rounded">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-                Seleccionar profesor
-            </label>
-            <SelectProfessors onChange={(e) => {
-                    setProfessorSelected(e);
-                    setIsProfessorSelected(true);
-                }}
-                defaultValue={props.periodToEdit.professorId ? props.periodToEdit.professor : null}
-                className="z-50"
-            />
-            {isProfessorSelected && (<><div className="my-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                    Profesor desde
-                </label>
-                    <DemoContainer components={['DatePicker', 'DatePicker']}>
-                        <DatePicker
-                        label="Seleccionar fecha"
+        <div className="bg-gray-100 p-3 rounded flex flex-col gap-6 col-span-2">
+            <div>
+                <Label htmlFor="selectProfessor">Seleccionar profesor</Label>
+                <SelectProfessors
+                    name="selectProfessor"
+                    onChange={(e) => {
+                        setProfessorSelected(e);
+                        setIsProfessorSelected(true);
+                    }}
+                    defaultValue={props.periodToEdit.professorId ? props.periodToEdit.professor : null}
+                    className="z-50"
+                />
+            </div>
+            {isProfessorSelected && (<>
+                
+                <div className="flex flex-col gap-4">
+                    <DateInput
+                        name="professorStartAt"
+                        label="Profesor desde"
+                        minDate={props.minStartAt}
+                        errorMessage="La fecha en que dicta el profesor no puede ser anterior a la fecha de inicio del curso"
                         value={startAt}
                         onChange={(v) => setStartAt(v)}
-                        />
-                    </DemoContainer>
-                <label className="block text-gray-700 text-sm font-bold mb-2 mt-2">
-                    Profesor hasta
-                </label>
-                    <DemoContainer components={['DatePicker', 'DatePicker']}>
-                        <DatePicker
-                        label="Seleccionar fecha"
+                    />
+                
+                    <DateInput
+                        name="professorEndAt"
+                        label="Profesor hasta"
+                        maxDate={props.maxEndAt || undefined}
+                        errorMessage="La fecha en que dicta el profesor no puede ser posterior a la finalizacion del curso, a menos que el curso sea circular"
                         value={endAt}
                         onChange={(v) => setEndAt(v)}
-                        />
-                    </DemoContainer>
-            </div>
-            <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-4">
-                    Pago del profesor por:
-                </label>
-                <div className="divide-y">
-                    <div className="sm:flex mb-2">
-                        <div className="flex items-center ml-2 md:ml-4">
-                            <input onChange={(e) => handleChangeCriteria({percentage: e.target.value})} name="criteria" id="criteria-percentage" type="radio" checked={isCriteriaByPercentage()} value="percentage" className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600" />
-                            <label htmlFor="criteria-percentage" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-900">Porcentaje</label>
+                    />
+                </div>
+                <div>
+                    <Label>Pago del profesor por:</Label>
+                    <div className="divide-y ml-2 md:ml-4">
+                        <div className="flex flex-col gap-4 sm:grid sm:grid-cols-3">
+                            <CustomRadio
+                                value="percentage"
+                                label="Porcentaje"
+                                onChange={(e) => handleChangeCriteria({percentage: e.target.value === "percentage"})}
+                                checked={isCriteriaByPercentage()}
+                            />
+                            <CustomRadio
+                                value="student"
+                                label="Estudiante"
+                                onChange={(e) => handleChangeCriteria({student: e.target.value === "student"})}
+                                checked={isCriteriaByStudent()}
+                            />
+                            <CustomRadio                            
+                                label="Ayudantía"
+                                value="assistant"
+                                onChange={(e) => handleChangeCriteria({assistant: e.target.value === "assistant"})}
+                                checked={isCriteriaByAssistant()}
+                            />
                         </div>
-                        <div className="flex items-center ml-2 mt-2 sm:mt-0 sm:ml-4">
-                            <input onChange={(e) => handleChangeCriteria({student: e.target.value})} name="criteria" id="criteria-student" checked={isCriteriaByStudent()} value="student" type="radio" className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600" />
-                            <label htmlFor="criteria-student" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-900">Estudiante</label>
+                        <div className={`flex items-center mt-4 ${isCriteriaByAssistant() && "hidden"}`}>
+                            <CustomCheckbox
+                                onChange={(e) => handleChangeCriteria({assistance: e.target.checked})}
+                                checked={isCriteriaByAssistance()}
+                                value="assistance"
+                                label="Por asistencia"
+                            />
                         </div>
-                        <div className="flex items-center ml-2 mt-2 sm:mt-0 sm:ml-4">
-                            <input onChange={(e) => handleChangeCriteria({assistant: e.target.value})} name="criteria" id="assistant" checked={isCriteriaByAssistant()} value="assistant" type="radio" className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600" />
-                            <label htmlFor="assistant" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-900">Ayudantía</label>
-                        </div>
-                    </div>
-                    <div className={`flex items-center pt-2 ml-2 md:ml-4 ${isCriteriaByAssistant() && "hidden"}`}>
-                        <input onChange={(e) => handleChangeCriteria({assistance: e.target.checked})} name="assistance" id="assistance" type="checkbox" checked={isCriteriaByAssistance()} value="assistance" className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600" />
-                        <label htmlFor="assistance" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-900">Por asistencia</label>
                     </div>
                 </div>
-            </div>
-            <div className="mb-4 w-3/6">
-                <CommonInput 
-                    label={isCriteriaByAssistant() ? "Monto por ayudantía" : isCriteriaByPercentage() ? "Porcentaje" : "Cantidad por alumno"}    
-                    value={criteriaValue}
-                    name="criteriaValue"
-                    id="criteriaValue" 
-                    type="number" 
-                    placeholder={isCriteriaByAssistant() ? "Monto" : isCriteriaByPercentage() ? "Porcentaje" : "Cantidad por alumno"}
-                    onChange={(e) => setCriteriaValue(e.target.value)}
-                />
-                <div className={`mt-4 ${!isCriteriaByPercentage() && "hidden"}`}>
+                <div className="sm:w-3/6">
+                    <CommonInput 
+                        label={isCriteriaByAssistant() ? "Monto por ayudantía" : isCriteriaByPercentage() ? "Porcentaje" : "Cantidad por alumno"}    
+                        value={criteriaValue}
+                        name="criteriaValue"
+                        symbol={isCriteriaByAssistant() ? "$" : isCriteriaByPercentage() ? "%" : "$"}
+                        id="criteriaValue" 
+                        min='0'
+                        type="number" 
+                        placeholder={isCriteriaByAssistant() ? "Monto" : isCriteriaByPercentage() ? "Porcentaje" : "Cantidad por alumno"}
+                        onChange={(e) => setCriteriaValue(e.target.value)}
+                    />
+                </div>
+                <div className={`sm:w-3/6 ${!isCriteriaByPercentage() && "hidden"}`}>
                     <CommonInput
-                        label="Valor del curso"    
+                        label="Valor del curso"
+                        min='0'
+                        currency
                         value={courseValue}
                         name="courseValue"
                         id="courseValue" 
@@ -165,23 +183,13 @@ export default function ProfessorInfo(props) {
                         onChange={(e) => setCourseValue(e.target.value)}
                     />
                 </div>
-            </div>
-            <div className="flex flex-row gap-4">
-                <button
-                    type="button"
-                    className="hover:bg-orange-550 bg-orange-300 hover:text-white rounded-md border border-transparent px-4 py-2 text-base font-medium text-yellow-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 sm:text-sm"
-                    onClick={() => addProfessor()}
-                >
-                    {props.periodToEdit.professorId ? 'Editar' : 'Agregar'}
-                </button>
-                <button
-                    type="button"
-                    className="focus:outline-none focus:ring-2 focus:ring-gray-500 hover:bg-white bg-orange-50 border-gray-300 text-yellow-900 rounded-md border border-transparent px-4 py-2 font-medium text-yellow-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 sm:text-sm"
-                    onClick={() => cancel()}
-                >
-                    Cancelar
-                </button>
-            </div></>)}
+                <div className="grid grid-cols-2 gap-4 sm:flex">
+                    <ButtonSecondary onClick={cancel}>Cancelar</ButtonSecondary>
+                    <ButtonPrimary onClick={addProfessor}>
+                        {props.periodToEdit.professorId ? 'Editar' : 'Agregar'}
+                    </ButtonPrimary>
+                </div></>)
+            }
         </div>
     );
 } 

@@ -1,17 +1,30 @@
 import { StatusCodes } from "http-status-codes";
-import { payment, course, student, user, file, professor, secretaryPayment, servicePayment, item, headquarter, clazz } from "../db/index.js";
+import { payment, course, student, user, file, professor, secretaryPayment, servicePayment, item, headquarter, clazz, category } from "../db/index.js";
 import * as logService from "./logService.js";
 import * as notificationService from "./notificationService.js";
 import * as emailService from "./emailService.js";
 import { Op, col, cast, Sequelize } from "sequelize";
 import utils from "../utils/functions.js";
 import { fillPaymentReceiptPDF } from "../utils/pdfUtils.js";
+import ExcelJS from "exceljs";
 
-const defaultPaymentInclude = [{ model: professor, attributes: ["name", "lastName"]},user, student, course, file, secretaryPayment, headquarter, item, clazz, student,{
-  model: user,
-  as: "verifiedByUser",
-  attributes: ["firstName", "lastName"]
-}];
+const defaultPaymentInclude = [
+  { model: professor, attributes: ["name", "lastName"]},
+  user, 
+  student, 
+  course, 
+  file, 
+  secretaryPayment, 
+  headquarter, 
+  { model: item, include: [category] }, 
+  clazz, 
+  student,
+  {
+    model: user,
+    as: "verifiedByUser",
+    attributes: ["firstName", "lastName"]
+  }
+];
 /**
  * 
  * @param {Array||Payment} paymentParam 
@@ -487,4 +500,264 @@ const sendReceiptByEmail = async (paymentId) => {
     console.error(`Error enviando recibo por email para pago ${paymentId}:`, error);
     throw error;
   }
+};
+
+export const exportPaymentsByCategory = async (specification) => {
+  // Fetch payments using the same specification as the frontend
+  const payments = await payment.findAll({
+    where: specification.getSequelizeSpecification(),
+    include: specification.getSequelizeSpecificationAssociations(defaultPaymentInclude)
+  });
+
+  if (payments.length === 0) {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Balance por Rubros");
+    worksheet.addRow(["No hay pagos en el período seleccionado"]);
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer;
+  }
+
+  // Determine date range and if we need to separate by months
+  const dates = payments.map(p => new Date(p.at || p.operativeResult || p.createdAt).getTime());
+  const minDate = new Date(Math.min(...dates));
+  const maxDate = new Date(Math.max(...dates));
+  
+  // Check if period spans more than one month
+  const minMonth = minDate.getMonth();
+  const minYear = minDate.getFullYear();
+  const maxMonth = maxDate.getMonth();
+  const maxYear = maxDate.getFullYear();
+  const spanMultipleMonths = (maxYear > minYear) || (maxYear === minYear && maxMonth > minMonth);
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Balance por Rubros");
+
+  if (spanMultipleMonths) {
+    // Generate list of months in the period
+    const months = [];
+    let currentDate = new Date(minYear, minMonth, 1);
+    const endDate = new Date(maxYear, maxMonth, 1);
+    
+    while (currentDate <= endDate) {
+      months.push({
+        year: currentDate.getFullYear(),
+        month: currentDate.getMonth(),
+        label: currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+      });
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+
+    // Group payments by category and month
+    const categoryMonthGroups = {};
+    
+    payments.forEach(payment => {
+      const value = payment.value || 0;
+      const paymentDate = new Date(payment.at || payment.operativeResult || payment.createdAt);
+      const paymentYear = paymentDate.getFullYear();
+      const paymentMonth = paymentDate.getMonth();
+      
+      // Determine category
+      let categoryName = "Sin categoría";
+      if (payment.item && payment.item.category) {
+        categoryName = payment.item.category.title;
+      } else if (payment.course) {
+        categoryName = "Cursos";
+      } else if (payment.clazz) {
+        categoryName = "Clases";
+      }
+
+      if (!categoryMonthGroups[categoryName]) {
+        categoryMonthGroups[categoryName] = {};
+      }
+
+      const monthKey = `${paymentYear}-${paymentMonth}`;
+      if (!categoryMonthGroups[categoryName][monthKey]) {
+        categoryMonthGroups[categoryName][monthKey] = {
+          total: 0,
+          count: 0
+        };
+      }
+
+      categoryMonthGroups[categoryName][monthKey].total += value;
+      categoryMonthGroups[categoryName][monthKey].count += 1;
+    });
+
+    // Build columns dynamically
+    const columns = [{ header: "Rubro", key: "category", width: 30 }];
+    months.forEach((month, index) => {
+      columns.push({ 
+        header: month.label.charAt(0).toUpperCase() + month.label.slice(1), 
+        key: `month_${index}`, 
+        width: 18 
+      });
+    });
+    columns.push({ header: "Total", key: "total", width: 18 });
+    
+    worksheet.columns = columns;
+
+    // Style header row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF4472C4" }
+    };
+    headerRow.alignment = { vertical: "middle", horizontal: "center" };
+    headerRow.height = 25;
+
+    // Add data rows
+    const sortedCategories = Object.keys(categoryMonthGroups).sort();
+    const monthTotals = new Array(months.length).fill(0);
+    let grandTotal = 0;
+
+    sortedCategories.forEach(categoryName => {
+      const rowData = { category: categoryName };
+      let categoryTotal = 0;
+
+      months.forEach((month, index) => {
+        const monthKey = `${month.year}-${month.month}`;
+        const monthData = categoryMonthGroups[categoryName][monthKey];
+        const monthValue = monthData ? monthData.total : 0;
+        rowData[`month_${index}`] = monthValue;
+        categoryTotal += monthValue;
+        monthTotals[index] += monthValue;
+      });
+
+      rowData.total = categoryTotal;
+      grandTotal += categoryTotal;
+      
+      const row = worksheet.addRow(rowData);
+      row.alignment = { vertical: "middle" };
+      
+      // Format month columns as currency
+      months.forEach((_, index) => {
+        row.getCell(index + 2).numFmt = "$#,##0.00";
+        row.getCell(index + 2).alignment = { horizontal: "right" };
+      });
+      row.getCell(months.length + 2).numFmt = "$#,##0.00";
+      row.getCell(months.length + 2).alignment = { horizontal: "right" };
+      row.getCell(months.length + 2).font = { bold: true };
+    });
+
+    // Add total row
+    const totalRowData = { category: "TOTAL GENERAL" };
+    months.forEach((_, index) => {
+      totalRowData[`month_${index}`] = monthTotals[index];
+    });
+    totalRowData.total = grandTotal;
+
+    const totalRow = worksheet.addRow(totalRowData);
+    totalRow.font = { bold: true, size: 11 };
+    totalRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFD9E1F2" }
+    };
+    
+    // Format total row
+    months.forEach((_, index) => {
+      totalRow.getCell(index + 2).numFmt = "$#,##0.00";
+      totalRow.getCell(index + 2).alignment = { horizontal: "right" };
+    });
+    totalRow.getCell(months.length + 2).numFmt = "$#,##0.00";
+    totalRow.getCell(months.length + 2).alignment = { horizontal: "right" };
+
+  } else {
+    // Single month or less - use original simple format
+    const categoryGroups = {};
+    let totalGeneral = 0;
+
+    payments.forEach(payment => {
+      const value = payment.value || 0;
+      totalGeneral += value;
+
+      // Determine category
+      let categoryName = "Sin categoría";
+      if (payment.item && payment.item.category) {
+        categoryName = payment.item.category.title;
+      } else if (payment.course) {
+        categoryName = "Cursos";
+      } else if (payment.clazz) {
+        categoryName = "Clases";
+      }
+
+      if (!categoryGroups[categoryName]) {
+        categoryGroups[categoryName] = {
+          total: 0,
+          count: 0
+        };
+      }
+
+      categoryGroups[categoryName].total += value;
+      categoryGroups[categoryName].count += 1;
+    });
+
+    // Define columns
+    worksheet.columns = [
+      { header: "Rubro", key: "category", width: 40 },
+      { header: "Cantidad de Pagos", key: "count", width: 20 },
+      { header: "Total Recaudado", key: "total", width: 20 },
+    ];
+
+    // Style header row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, size: 12 };
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF4472C4" }
+    };
+    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    headerRow.alignment = { vertical: "middle", horizontal: "center" };
+    headerRow.height = 25;
+
+    // Add data rows
+    const sortedCategories = Object.keys(categoryGroups).sort();
+    sortedCategories.forEach(categoryName => {
+      const group = categoryGroups[categoryName];
+      const row = worksheet.addRow({
+        category: categoryName,
+        count: group.count,
+        total: group.total,
+      });
+      
+      // Style data rows
+      row.alignment = { vertical: "middle" };
+    });
+
+    // Add total row
+    const totalRow = worksheet.addRow({
+      category: "TOTAL GENERAL",
+      count: payments.length,
+      total: totalGeneral,
+    });
+    
+    totalRow.font = { bold: true, size: 12 };
+    totalRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFD9E1F2" }
+    };
+
+    // Format total column as currency
+    worksheet.getColumn("total").numFmt = "$#,##0.00";
+    worksheet.getColumn("total").alignment = { horizontal: "right" };
+    worksheet.getColumn("count").alignment = { horizontal: "center" };
+  }
+
+  // Add borders to all cells (applies to both formats)
+  worksheet.eachRow((row, rowNumber) => {
+    row.eachCell((cell) => {
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+    });
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return buffer;
 };
