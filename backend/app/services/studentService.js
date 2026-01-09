@@ -25,7 +25,7 @@ export const editById = async (studentParam, id) => {
 };
 
 export const getById = async (id) => {
-  const st = await student.findByPk(id, { include: [course, courseStudent, courseTask, payment] });
+  const st = await student.findByPk(id, { include: [course, payment] });
   for (const c of st.dataValues.courses) {
     if (c.needsRegistration) {
       const registrationPayment = await getRegistrationPaymentId(id, c.id);
@@ -243,18 +243,35 @@ export const getAll = async (page = 1, size = 10, specification) => {
 export const getStudentsByCourse = async (courseId) => {
   const c = await course.findOne({ include: [{
     model: student,
-    include: [courseTask],
-    attributes: ["name", "lastName", "document", "email", "phoneNumber", "id"]
+    attributes: ["name", "lastName", "document", "email", "phoneNumber", "id"],
+    through: { attributes: ["createdAt"] }
   }], where: { id: courseId } })
   let studentsIds = c.students.map(c => c.id)
-  const payments = await payment.findAll({ where: { courseId, studentId: {
-    [Op.in]: studentsIds
-  } } })
-  const getRegistrationPayment = (studentId) => payments.find(p => p.isRegistrationPayment && p.studentId == studentId);
+  const payments = await payment.findAll({ 
+    where: { courseId, studentId: {
+      [Op.in]: studentsIds
+    } },
+    attributes: ["isRegistrationPayment", "id", "at", "operativeResult", "studentId", "value", "discount"]
+  })
+  const getRegistrationPayment = (studentId) => {
+    const regPayment = payments.find(p => p.isRegistrationPayment && p.studentId == studentId);
+    if (regPayment) {
+      return {
+        isRegistrationPayment: regPayment.isRegistrationPayment,
+        id: regPayment.id,
+        at: regPayment.at,
+        operativeResult: regPayment.operativeResult
+      };
+    }
+    return regPayment;
+  };
   if (c.isCircular) {
     const getCircularPayment = (studentId) => payments.find(p => !p.isRegistrationPayment && p.studentId == studentId);
     for (const s of c.dataValues.students) {
       const st = s.dataValues
+      // Extract createdAt before deleting courseStudent
+      st.inscriptionDate = st.courseStudent.createdAt
+      delete st.courseStudent
       if (c.needsRegistration) {
         st.registrationPayment = getRegistrationPayment(st.id)
         st.registrationPaid = st.registrationPayment != undefined;
@@ -294,6 +311,9 @@ export const getStudentsByCourse = async (courseId) => {
   const currentYear = now.getFullYear()
   for (const s of c.dataValues.students) {
     const st = s.dataValues
+    // Extract createdAt before deleting courseStudent
+    st.inscriptionDate = st.courseStudent.createdAt
+    delete st.courseStudent
     if (c.needsRegistration) {
       st.registrationPayment = getRegistrationPayment(st.id)
       st.registrationPaid = st.registrationPayment != undefined;
@@ -318,7 +338,7 @@ export const getStudentsByCourse = async (courseId) => {
           st.currentMonth = STUDENT_MONTHS_CONDITIONS.PAID
         }
       } else {
-        const studentMemberSince = st.courseStudent.createdAt;
+        const studentMemberSince = st.inscriptionDate;
         const monthSince = studentMemberSince.getMonth() +1
         const yearSince = studentMemberSince.getFullYear()
         if (yearSince < year) {
