@@ -6,7 +6,7 @@ import TabList from '@mui/lab/TabList';
 import TabPanel from '@mui/lab/TabPanel';
 import ClassesSection from "../components/section/classes/classesSection";
 import VerifyPaymentClassesSection from "../components/section/classes/verifyPaymentClassesSection";
-
+ 
 import Container from "../components/container";
 
 export default function Classes(props) {
