@@ -519,7 +519,7 @@ export const Provider = ({ children }) => {
         const currentMonth = new Date().getMonth()+1;
         const now = new Date().toISOString();
         student.courses.forEach(course => {
-            let memberSince = student.courseStudents.find(cs => cs.courseId == course.id).createdAt;
+            let memberSince = student.courseStudents?.find(cs => cs.courseId == course.id)?.createdAt || now;
             memberSince = new Date(memberSince);
             const periods = {};
             if (course.startAt == null)
