@@ -25,7 +25,19 @@ export const editById = async (studentParam, id) => {
 };
 
 export const getById = async (id) => {
-  const st = await student.findByPk(id, { include: [course, payment] });
+  const st = await student.findByPk(id, { 
+    include: [
+      course, 
+      payment,
+      {
+        model: courseTask,
+        through: {
+          model: studentCourseTask,
+          attributes: ["completed"]
+        }
+      }
+    ] 
+  });
   for (const c of st.dataValues.courses) {
     if (c.needsRegistration) {
       const registrationPayment = await getRegistrationPaymentId(id, c.id);
