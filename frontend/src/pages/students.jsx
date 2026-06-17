@@ -18,6 +18,43 @@ import Loader from "../components/spinner/loader";
 import DeleteButton from "../components/button/deleteButton";
 import EditButton from "../components/button/editButton";
 import { COLORS } from "../constants";
+import Select from 'react-select';
+import Label from '../components/label/label';
+
+const COUNTRIES = [
+    { label: '🇦🇷 Argentina', value: 'Argentina' },
+    { label: '🇧🇴 Bolivia', value: 'Bolivia' },
+    { label: '🇧🇷 Brasil', value: 'Brasil' },
+    { label: '🇨🇱 Chile', value: 'Chile' },
+    { label: '🇨🇴 Colombia', value: 'Colombia' },
+    { label: '🇨🇷 Costa Rica', value: 'Costa Rica' },
+    { label: '🇨🇺 Cuba', value: 'Cuba' },
+    { label: '🇪🇨 Ecuador', value: 'Ecuador' },
+    { label: '🇸🇻 El Salvador', value: 'El Salvador' },
+    { label: '🇬🇹 Guatemala', value: 'Guatemala' },
+    { label: '🇭🇳 Honduras', value: 'Honduras' },
+    { label: '🇲🇽 México', value: 'México' },
+    { label: '🇳🇮 Nicaragua', value: 'Nicaragua' },
+    { label: '🇵🇦 Panamá', value: 'Panamá' },
+    { label: '🇵🇾 Paraguay', value: 'Paraguay' },
+    { label: '🇵🇪 Perú', value: 'Perú' },
+    { label: '🇩🇴 República Dominicana', value: 'República Dominicana' },
+    { label: '🇺🇾 Uruguay', value: 'Uruguay' },
+    { label: '🇻🇪 Venezuela', value: 'Venezuela' },
+    { label: '🇺🇸 Estados Unidos', value: 'Estados Unidos' },
+    { label: '🇪🇸 España', value: 'España' },
+    { label: '🇮🇹 Italia', value: 'Italia' },
+    { label: '🇫🇷 Francia', value: 'Francia' },
+    { label: '🇩🇪 Alemania', value: 'Alemania' },
+    { label: '🇬🇧 Reino Unido', value: 'Reino Unido' },
+    { label: '🇵🇹 Portugal', value: 'Portugal' },
+    { label: '🇯🇵 Japón', value: 'Japón' },
+    { label: '🇨🇳 China', value: 'China' },
+    { label: '🇮🇳 India', value: 'India' },
+    { label: '🇦🇺 Australia', value: 'Australia' },
+    { label: '🇨🇦 Canadá', value: 'Canadá' },
+    { label: '🌍 Otro', value: '__OTRO__' },
+];
 
 export default function Students(props) {
     const { deleteStudent, editStudent, newStudent, changeAlertStatusAndMessage } = useContext(Context);
@@ -32,6 +69,7 @@ export default function Students(props) {
     const [isDocumentDuplicated, setIsDocumentDuplicated] = useState(false);
     const [isEmailDuplicated, setIsEmailDuplicated] = useState(false);
     const [isPhoneNumberDuplicated, setIsPhoneNumberDuplicated] = useState(false);
+    const [isCustomCountry, setIsCustomCountry] = useState(false);
     const [isOpenPendingPaymentsModal, setIsOpenPendingPaymentsModal] = useState(false);
     const [pageableStudents, setPageableStudents] = useState([]);
     const [totalRows, setTotalRows] = useState(0);
@@ -122,6 +160,8 @@ export default function Students(props) {
         setEdit(true);
         setDisplayModal(true);
         setStudentId(student.id);
+        const isKnown = !student.country || COUNTRIES.some(c => c.value === student.country);
+        setIsCustomCountry(!isKnown);
     }
 
     const handleDeleteStudent = async () => {
@@ -198,7 +238,11 @@ export default function Students(props) {
             surname: edit ? studentToEdit.lastName : '',
             document: edit ? studentToEdit.document : null,
             email: edit ? studentToEdit.email : '',
-            phoneNumber: edit ? studentToEdit.phoneNumber : null
+            phoneNumber: edit ? studentToEdit.phoneNumber : null,
+            country: edit ? (studentToEdit.country || 'Argentina') : 'Argentina',
+            customCountry: '',
+            province: edit ? (studentToEdit.province || 'Buenos Aires') : 'Buenos Aires',
+            neighborhood: edit ? studentToEdit.neighborhood : ''
         },
         onSubmit: async (values,  { resetForm }) => {
           const body = {
@@ -206,7 +250,10 @@ export default function Students(props) {
             lastName: values.surname,
             document: (values.document !== '') ? values.document : null,
             email: values.email,
-            phoneNumber: values.phoneNumber
+            phoneNumber: values.phoneNumber,
+            country: (isCustomCountry ? values.customCountry : values.country) || null,
+            province: values.province || null,
+            neighborhood: values.neighborhood || null
           };
           isLoading.enable()
           try {
@@ -223,12 +270,14 @@ export default function Students(props) {
                 }, 150);
             }
             resetForm();
-            isLoading.disable()
+            isLoading.disable();
+            setIsCustomCountry(false);
             setDisplayModal(false);
           } catch (error) {
             changeAlertStatusAndMessage(true, 'error', 'El estudiante no pudo ser informado... Por favor inténtelo nuevamente.');
             resetForm();
-            isLoading.disable()
+            isLoading.disable();
+            setIsCustomCountry(false);
             setDisplayModal(false);
           }
         },
@@ -335,6 +384,69 @@ export default function Students(props) {
                             id="phoneNumber" 
                             type="number" 
                             placeholder="Numero de telefono"
+                            onChange={formik.handleChange}
+                        />
+                        <div>
+                            <Label htmlFor="country">País</Label>
+                            {isCustomCountry ? (
+                                <div className="flex gap-2 items-center">
+                                    <input
+                                        id="customCountry"
+                                        name="customCountry"
+                                        type="text"
+                                        className="border border-gray-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                        placeholder="Escribir país"
+                                        value={formik.values.customCountry || (edit && !COUNTRIES.some(c => c.value === formik.values.country) ? formik.values.country : '')}
+                                        onChange={(e) => formik.setFieldValue('customCountry', e.target.value)}
+                                        autoFocus
+                                    />
+                                    <button
+                                        type="button"
+                                        className="text-xs text-blue-500 underline whitespace-nowrap"
+                                        onClick={() => { setIsCustomCountry(false); formik.setFieldValue('country', 'Argentina'); formik.setFieldValue('customCountry', ''); }}
+                                    >Volver al listado</button>
+                                </div>
+                            ) : (
+                                <Select
+                                    inputId="country"
+                                    name="country"
+                                    options={COUNTRIES}
+                                    value={COUNTRIES.find(c => c.value === formik.values.country) || null}
+                                    onChange={(option) => {
+                                        if (option && option.value === '__OTRO__') {
+                                            setIsCustomCountry(true);
+                                            formik.setFieldValue('country', '__OTRO__');
+                                            formik.setFieldValue('customCountry', '');
+                                        } else {
+                                            formik.setFieldValue('country', option ? option.value : '');
+                                        }
+                                    }}
+                                    placeholder="Seleccionar país"
+                                    noOptionsMessage={() => 'No encontrado'}
+                                    styles={{ menu: provided => ({ ...provided, zIndex: 9999 }) }}
+                                />
+                            )}
+                        </div>
+                        <CommonInput
+                            label="Provincia"
+                            onBlur={formik.handleBlur}
+                            value={formik.values.province}
+                            name="province"
+                            htmlFor="province"
+                            id="province"
+                            type="text"
+                            placeholder="Provincia"
+                            onChange={formik.handleChange}
+                        />
+                        <CommonInput
+                            label="Barrio"
+                            onBlur={formik.handleBlur}
+                            value={formik.values.neighborhood}
+                            name="neighborhood"
+                            htmlFor="neighborhood"
+                            id="neighborhood"
+                            type="text"
+                            placeholder="Barrio"
                             onChange={formik.handleChange}
                         />
                     </form>
