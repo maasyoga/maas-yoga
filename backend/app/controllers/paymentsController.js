@@ -2,9 +2,16 @@ import * as paymentService from "../services/paymentService.js";
 import * as mercadoPagoService from "../services/mercadoPagoService.js";
 import { StatusCodes } from "http-status-codes";
 import Specification from "../models/Specification.js";
-import { payment } from "../db/index.js";
+import { payment as paymentModel } from "../db/index.js";
 import { getById } from "../services/studentService.js";
+import { emitirFacturaAgrupada, resolveInvoiceForPayment, MixedStudentsError, DuplicateInvoiceError } from "../services/invoiceService.js";
+import { generateAfipInvoicePDF } from "../utils/pdfUtils.js";
+import { sendEmailWithPDF } from "../services/emailService.js";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
 import { PAYMENT_TYPES } from "../utils/constants.js";
+
+const __invoiceTemplatePath = new URL('../templates/invoice_email.html', import.meta.url);
 
 export default {
   /**
@@ -56,6 +63,135 @@ export default {
       const newPayment = await paymentService.splitPayment(req.params.id, req.body);
       res.status(StatusCodes.CREATED).json(newPayment);
     } catch (e) {
+      next(e);
+    }
+  },
+
+  downloadInvoicePDF: async (req, res, next) => {
+    try {
+      const resolved = await resolveInvoiceForPayment(req.params.id);
+      if (!resolved) return res.status(404).json({ message: 'Pago no encontrado' });
+      const { paymentDb, items, total } = resolved;
+      if (!paymentDb.cae) return res.status(400).json({ message: 'Este pago no tiene factura emitida' });
+
+      const alumno = paymentDb.student;
+      const IVA_TO_TIPO_CMP = { RESPONSABLE_INSCRIPTO: 1 };
+      const IVA_TO_DOC_TIPO = { CONSUMIDOR_FINAL: 99 };
+      const ivaKey = alumno?.ivaCondition || 'CONSUMIDOR_FINAL';
+      const tipoCmp = IVA_TO_TIPO_CMP[ivaKey] || 6;
+      const tipoDocRec = IVA_TO_DOC_TIPO[ivaKey] || 80;
+
+      const pad = (n) => String(n).padStart(2, '0');
+      const d = new Date(paymentDb.at);
+      const fechaCbte = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+      const fechaIso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const caeVenc = paymentDb.caeVencimiento
+        ? (() => { const p = paymentDb.caeVencimiento.toString().split('-'); return `${p[2]}/${p[1]}/${p[0]}`; })()
+        : '';
+
+      const pdfBytes = await generateAfipInvoicePDF({
+        invoiceType: paymentDb.invoiceType,
+        invoiceNumber: paymentDb.invoiceNumber,
+        puntoVenta: parseInt(process.env.AFIP_PUNTO_VENTA || '1'),
+        fechaCbte, fechaIso,
+        emisorCuit: process.env.AFIP_CUIT,
+        emisorNombre: process.env.AFIP_NOMBRE || 'Emisor',
+        receptorNombre: alumno ? `${alumno.name} ${alumno.lastName}` : '',
+        receptorCuit: alumno?.cuit || '',
+        receptorIva: ivaKey,
+        items, total,
+        cae: paymentDb.cae,
+        caeVencimiento: caeVenc,
+        tipoCmp, tipoDocRec,
+        nroDocRec: (alumno?.cuit || '').replace(/-/g, ''),
+      });
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="factura-${paymentDb.invoiceType?.replace(/ /g, '-')}-${paymentDb.invoiceNumber}.pdf"`);
+      res.send(Buffer.from(pdfBytes));
+    } catch (e) {
+      next(e);
+    }
+  },
+
+  sendInvoiceByEmail: async (req, res, next) => {
+    console.log(`[sendInvoiceByEmail] Starting for payment ID: ${req.params.id}`);
+    try {
+      const resolved = await resolveInvoiceForPayment(req.params.id);
+      if (!resolved) return res.status(404).json({ message: 'Pago no encontrado' });
+      const { paymentDb, items, total } = resolved;
+      if (!paymentDb.cae) return res.status(400).json({ message: 'Este pago no tiene factura emitida' });
+      const alumno = paymentDb.student;
+      if (!alumno?.email) return res.status(400).json({ message: 'El alumno no tiene correo registrado' });
+
+      const ivaKey = alumno?.ivaCondition || 'CONSUMIDOR_FINAL';
+      const IVA_TO_TIPO_CMP = { RESPONSABLE_INSCRIPTO: 1 };
+      const IVA_TO_DOC_TIPO = { CONSUMIDOR_FINAL: 99 };
+      const tipoCmp = IVA_TO_TIPO_CMP[ivaKey] || 6;
+      const tipoDocRec = IVA_TO_DOC_TIPO[ivaKey] || 80;
+      const pad = (n) => String(n).padStart(2, '0');
+      const d = new Date(paymentDb.at);
+      const fechaCbte = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+      const fechaIso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const caeVenc = paymentDb.caeVencimiento
+        ? (() => { const p = paymentDb.caeVencimiento.toString().split('-'); return `${p[2]}/${p[1]}/${p[0]}`; })()
+        : '';
+
+      const pdfBytes = await generateAfipInvoicePDF({
+        invoiceType: paymentDb.invoiceType, invoiceNumber: paymentDb.invoiceNumber,
+        puntoVenta: parseInt(process.env.AFIP_PUNTO_VENTA || '1'),
+        fechaCbte, fechaIso,
+        emisorCuit: process.env.AFIP_CUIT, emisorNombre: process.env.AFIP_NOMBRE || 'Emisor',
+        receptorNombre: `${alumno.name} ${alumno.lastName}`,
+        receptorCuit: alumno?.cuit || '', receptorIva: ivaKey,
+        items, total,
+        cae: paymentDb.cae, caeVencimiento: caeVenc,
+        tipoCmp, tipoDocRec, nroDocRec: (alumno?.cuit || '').replace(/-/g, ''),
+      });
+
+      const fileName = `factura-${paymentDb.invoiceType?.replace(/ /g, '-')}-${paymentDb.invoiceNumber}.pdf`;
+      const studentName = `${alumno.name} ${alumno.lastName}`;
+      const nroPadded = `${String(parseInt(process.env.AFIP_PUNTO_VENTA||'1')).padStart(4,'0')}-${String(paymentDb.invoiceNumber||0).padStart(8,'0')}`;
+
+      let htmlBody = '';
+      try {
+        htmlBody = readFileSync(fileURLToPath(__invoiceTemplatePath), 'utf8')
+          .replace(/{firstName}/g, alumno.name)
+          .replace(/{lastName}/g, alumno.lastName)
+          .replace(/{invoiceType}/g, paymentDb.invoiceType || '')
+          .replace(/{invoiceNumber}/g, nroPadded)
+          .replace(/{fechaCbte}/g, fechaCbte)
+          .replace(/{cae}/g, paymentDb.cae || '')
+          .replace(/{caeVencimiento}/g, caeVenc)
+          .replace(/{emisorNombre}/g, process.env.AFIP_NOMBRE || 'Emisor');
+      } catch (_) {}
+
+      await sendEmailWithPDF(
+        alumno.email,
+        `Factura AFIP - ${paymentDb.invoiceType} N\u00b0 ${nroPadded}`,
+        `Hola ${studentName},\n\nAdjunto encontras tu factura AFIP.\n\nSaludos,\n${process.env.AFIP_NOMBRE || 'Emisor'}`,
+        Buffer.from(pdfBytes),
+        fileName,
+        htmlBody,
+      );
+      res.status(200).json({ message: `Factura enviada a ${alumno.email}` });
+    } catch (e) {
+      next(e);
+    }
+  },
+
+  emitirFactura: async (req, res, next) => {
+    try {
+      const { items, studentId, ivaCondition, cuit, confirmDuplicates } = req.body;
+      const result = await emitirFacturaAgrupada({ items, studentId, ivaCondition, cuit, confirmDuplicates, userId: req.user.id });
+      res.status(StatusCodes.OK).json(result);
+    } catch (e) {
+      if (e instanceof MixedStudentsError) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ message: e.message });
+      }
+      if (e instanceof DuplicateInvoiceError) {
+        return res.status(StatusCodes.CONFLICT).json({ message: e.message, alreadyInvoicedPaymentIds: e.alreadyInvoicedPaymentIds });
+      }
       next(e);
     }
   },
@@ -186,7 +322,7 @@ export default {
       const { q, page, size } = req.query;
       const querySpecification = q;
       const isOrOperation = req.query.isOrOperation === "true";
-      const specification = new Specification(querySpecification, payment, isOrOperation);
+      const specification = new Specification(querySpecification, paymentModel, isOrOperation);
       const payments = await paymentService.getAll(page, size, specification);
       res.status(StatusCodes.OK).json(payments);
     } catch (e) {
@@ -203,7 +339,7 @@ export default {
       const { q, page, size, all } = req.query;
       const querySpecification = q;
       const isOrOperation = req.query.isOrOperation === "true";
-      const specification = new Specification(querySpecification, payment, isOrOperation);
+      const specification = new Specification(querySpecification, paymentModel, isOrOperation);
       const payments = await paymentService.getAllVerified(page, size, specification, all);
       res.status(StatusCodes.OK).json(payments);
     } catch (e) {
@@ -220,7 +356,7 @@ export default {
       const { q, page, size, all } = req.query;
       const querySpecification = q;
       const isOrOperation = req.query.isOrOperation === "true";
-      const specification = new Specification(querySpecification, payment, isOrOperation);
+      const specification = new Specification(querySpecification, paymentModel, isOrOperation);
       const payments = await paymentService.getAllUnverified(page, size, specification, all);
       res.status(StatusCodes.OK).json(payments);
     } catch (e) {
@@ -237,7 +373,7 @@ export default {
     try {
       const querySpecification = req.query.q;
       const isOrOperation = req.query.isOrOperation === "true";
-      const specification = new Specification(querySpecification, payment, isOrOperation);
+      const specification = new Specification(querySpecification, paymentModel, isOrOperation);
       const payments = await paymentService.legacyGetAll(specification);
       res.status(StatusCodes.OK).json(payments);
     } catch (e) {
@@ -254,7 +390,7 @@ export default {
     try {
       const querySpecification = req.query.q;
       const isOrOperation = req.query.isOrOperation === "true";
-      const specification = new Specification(querySpecification, payment, isOrOperation);
+      const specification = new Specification(querySpecification, paymentModel, isOrOperation);
       const payments = await paymentService.getForChart(specification);
       res.status(StatusCodes.OK).json(payments);
     } catch (e) {
@@ -602,7 +738,7 @@ export default {
     try {
       const querySpecification = req.query.q;
       const isOrOperation = req.query.isOrOperation === "true";
-      const specification = new Specification(querySpecification, payment, isOrOperation);
+      const specification = new Specification(querySpecification, paymentModel, isOrOperation);
       const excelBuffer = await paymentService.exportPaymentsByCategory(specification);
       
       const now = new Date();

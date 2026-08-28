@@ -102,6 +102,43 @@ export default {
             subscriber.complete();
         }).pipe(share());
     },
+    downloadInvoicePDF(paymentId) {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            axios
+                .get(baseUrl + `api/v1/payments/${paymentId}/invoice/pdf`, { responseType: 'blob' })
+                .then((response) => {
+                    const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', `factura-${paymentId}.pdf`);
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    URL.revokeObjectURL(url);
+                    resolve();
+                })
+                .catch((error) => reject(error));
+        });
+    },
+    sendInvoiceByEmail(paymentId) {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            axios
+                .post(baseUrl + `api/v1/payments/${paymentId}/invoice/email`)
+                .then((response) => resolve(response.data))
+                .catch((error) => reject(error));
+        });
+    },
+    emitirFactura(items, { studentId, ivaCondition, cuit, confirmDuplicates = false } = {}) {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            axios
+                .post(baseUrl + `api/v1/payments/invoice`, { items, studentId, ivaCondition, cuit, confirmDuplicates })
+                .then((response) => resolve(response.data))
+                .catch((error) => reject(error));
+        });
+    },
     deletePayment(paymentId) {
         return new Promise((resolve, reject) => {
             const baseUrl = process.env.REACT_APP_BACKEND_HOST;
