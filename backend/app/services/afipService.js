@@ -89,6 +89,11 @@ const soapRequest = (url, soapAction, body) => {
         "SOAPAction": soapAction,
         "Content-Length": Buffer.byteLength(body),
       },
+      // Los servidores de AFIP (WSAA/WSFE) siguen usando parámetros Diffie-Hellman de
+      // menos de 2048 bits. OpenSSL 3.x (Node 18+) los rechaza por defecto con
+      // "dh key too small". Bajamos el nivel de seguridad TLS solo para esta conexión
+      // puntual (no afecta al resto del proceso ni a otras conexiones salientes).
+      ciphers: "DEFAULT:@SECLEVEL=1",
     };
     const req = https.request(options, (res) => {
       let data = "";
@@ -150,19 +155,44 @@ const getLastVoucher = async (puntoVenta, cbteTipo, cuit, token, sign) => {
   return match ? parseInt(match[1]) : 0;
 };
 
-const getInvoiceConfig = (ivaCondition, cuit) => {
+// Códigos DocTipo del WSFE de AFIP para identificar al receptor de la factura.
+export const DOC_TIPO = { CUIT: 80, CUIL: 86, DNI: 96, SIN_IDENTIFICAR: 99 };
+
+/**
+ * Resuelve qué documento se informa a AFIP como receptor de la factura.
+ * Factura A (Responsable Inscripto) exige CUIT siempre: por definición, ser Responsable
+ * Inscripto implica estar registrado con CUIT ante AFIP, así que no admite DNI ni CUIL.
+ * Factura B sí acepta identificar al comprador con DNI, CUIT o CUIL, o dejarlo sin
+ * identificar (comportamiento previo, "Consumidor Final" sin datos).
+ */
+export const resolveReceptorDoc = (ivaCondition, { docType, cuit, document } = {}) => {
+  if (ivaCondition === "RESPONSABLE_INSCRIPTO") {
+    return { docTipo: DOC_TIPO.CUIT, docNro: cuit ? parseInt(cuit.replace(/\D/g, "")) : 0 };
+  }
+  if (docType === "DNI" && document) {
+    return { docTipo: DOC_TIPO.DNI, docNro: parseInt(String(document).replace(/\D/g, "")) };
+  }
+  if (docType === "CUIT" && cuit) {
+    return { docTipo: DOC_TIPO.CUIT, docNro: parseInt(cuit.replace(/\D/g, "")) };
+  }
+  if (docType === "CUIL" && cuit) {
+    return { docTipo: DOC_TIPO.CUIL, docNro: parseInt(cuit.replace(/\D/g, "")) };
+  }
+  return { docTipo: DOC_TIPO.SIN_IDENTIFICAR, docNro: 0 };
+};
+
+const getInvoiceConfig = (ivaCondition, receptorDoc) => {
   const config = INVOICE_TYPES[ivaCondition] || INVOICE_TYPES.CONSUMIDOR_FINAL;
   return {
     cbteTipo: config.cbte,
     label: config.label,
-    docTipo: config.docTipo,
     condIvaReceptor: config.condIvaReceptor,
-    docNro: ivaCondition === "RESPONSABLE_INSCRIPTO" && cuit ? parseInt(cuit.replace(/\D/g, "")) : 0,
+    ...receptorDoc,
   };
 };
 
 // Los montos ya incluyen el 21% de IVA y nunca se discrimina (ni Factura A ni B): decisión de negocio confirmada por contaduría.
-export const emitirFactura = async ({ items, ivaCondition, cuit }) => {
+export const emitirFactura = async ({ items, ivaCondition, cuit, docType, document }) => {
   const certPath = process.env.AFIP_CERT_PATH;
   const keyPath = process.env.AFIP_KEY_PATH;
   const cuitEmisor = process.env.AFIP_CUIT;
@@ -177,7 +207,8 @@ export const emitirFactura = async ({ items, ivaCondition, cuit }) => {
     throw new Error("Se necesita al menos un ítem para emitir la factura");
   }
 
-  const { cbteTipo, label, docTipo, docNro, condIvaReceptor } = getInvoiceConfig(ivaCondition, cuit);
+  const receptorDoc = resolveReceptorDoc(ivaCondition, { docType, cuit, document });
+  const { cbteTipo, label, docTipo, docNro, condIvaReceptor } = getInvoiceConfig(ivaCondition, receptorDoc);
 
   const total = parseFloat(items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0).toFixed(2));
 
