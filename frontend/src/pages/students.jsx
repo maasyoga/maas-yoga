@@ -242,7 +242,9 @@ export default function Students(props) {
             country: edit ? (studentToEdit.country || 'Argentina') : 'Argentina',
             customCountry: '',
             province: edit ? (studentToEdit.province || 'Buenos Aires') : 'Buenos Aires',
-            neighborhood: edit ? studentToEdit.neighborhood : ''
+            neighborhood: edit ? studentToEdit.neighborhood : '',
+            ivaCondition: edit ? (studentToEdit.ivaCondition || '') : '',
+            cuit: edit ? (studentToEdit.cuit || '') : ''
         },
         onSubmit: async (values,  { resetForm }) => {
           const body = {
@@ -253,7 +255,9 @@ export default function Students(props) {
             phoneNumber: values.phoneNumber,
             country: (isCustomCountry ? values.customCountry : values.country) || null,
             province: values.province || null,
-            neighborhood: values.neighborhood || null
+            neighborhood: values.neighborhood || null,
+            ivaCondition: values.ivaCondition || null,
+            cuit: values.cuit || null
           };
           isLoading.enable()
           try {
@@ -448,6 +452,39 @@ export default function Students(props) {
                             type="text"
                             placeholder="Barrio"
                             onChange={formik.handleChange}
+                        />
+                        <div>
+                            <Label htmlFor="ivaCondition">Condición IVA</Label>
+                            <select
+                                id="ivaCondition"
+                                name="ivaCondition"
+                                value={formik.values.ivaCondition}
+                                onChange={formik.handleChange}
+                                className="border border-gray-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-orange-400 bg-white"
+                            >
+                                <option value="">Sin especificar</option>
+                                <option value="CONSUMIDOR_FINAL">Consumidor Final (Factura B)</option>
+                                <option value="RESPONSABLE_INSCRIPTO">Responsable Inscripto (Factura A)</option>
+                                <option value="MONOTRIBUTO">Monotributo (Factura B)</option>
+                                <option value="EXENTO">IVA Exento (Factura B)</option>
+                            </select>
+                        </div>
+                        <CommonInput
+                            label="CUIL / CUIT"
+                            onBlur={formik.handleBlur}
+                            value={formik.values.cuit}
+                            name="cuit"
+                            htmlFor="cuit"
+                            id="cuit"
+                            type="text"
+                            placeholder="XX-XXXXXXXX-X"
+                            onChange={(e) => {
+                                const digits = e.target.value.replace(/\D/g, '').substring(0, 11);
+                                let formatted = digits;
+                                if (digits.length > 2) formatted = `${digits.slice(0,2)}-${digits.slice(2)}`;
+                                if (digits.length > 10) formatted = `${digits.slice(0,2)}-${digits.slice(2,10)}-${digits.slice(10)}`;
+                                formik.setFieldValue('cuit', formatted);
+                            }}
                         />
                     </form>
                 </>
