@@ -21,6 +21,11 @@ if [ "$LOCAL" = "$REMOTE" ]; then
 fi
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') - cambios detectados, desplegando..."
+
+# npm install regenera este archivo con pequenas diferencias de plataforma/version,
+# lo que deja cambios locales que bloquean el pull. Se descarta solo este archivo.
+git checkout -- backend/package-lock.json
+
 git pull origin "$BRANCH"
 
 cd backend
