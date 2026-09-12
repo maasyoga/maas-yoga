@@ -46,15 +46,17 @@ import NotificationIcon from "../components/badget/notification";
 import NotificationDropdown from "../components/notificationDropdown/notificationDropdown";
 import useToggle from "../hooks/useToggle";
 import { COLORS } from '../constants';
+import userService from "../services/userService";
  
 export default function Home(props) {
-    const { setUser, notifications } = useContext(Context);
+    const { setUserWithRole, notifications, changeAlertStatusAndMessage } = useContext(Context);
     const [isOpenSidebar, setIsOpenSidebar] = useState(false);
     const [date, setDate] = useState('');
     const [day, setDay] = useState('');
     const isNotificationsOpen = useToggle()
     const [isMasterAdmin, setIsMasterAdmin] = useState(false);
     const notificationIconRef = useRef(null)
+    const [certWarningShown, setCertWarningShown] = useState(false)
 
     let navigate = useNavigate();
 
@@ -106,12 +108,40 @@ export default function Home(props) {
         }
         if(localStorage.getItem('userInfo')) {
             const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-            setUser(userInfo);
+            setUserWithRole(userInfo);
             if(userInfo.permissions[0] === 'PERMISSION_CREATE_USER') {
                 setIsMasterAdmin(true);
             }
         }
     }, [])
+
+    useEffect(() => {
+        const checkCertExpiration = async () => {
+            if (certWarningShown) return;
+            
+            try {
+                const healthData = await userService.getHealth(true);
+                if (healthData.details?.afipCert?.expiresSoon) {
+                    const expiryDate = new Date(healthData.details.afipCert.notAfter);
+                    const formattedDate = expiryDate.toLocaleDateString('es-AR', { 
+                        day: '2-digit', 
+                        month: '2-digit', 
+                        year: 'numeric' 
+                    });
+                    changeAlertStatusAndMessage(
+                        true, 
+                        'warning', 
+                        `El certificado AFIP expira el ${formattedDate}. Por favor renuévelo antes de esa fecha.\nSi no renueva el certificado, la aplicación no podrá seguir generando facturas en AFIP.\nPóngase en contacto con soporte para más información.`
+                    );
+                    setCertWarningShown(true);
+                }
+            } catch (error) {
+                console.error('Error checking certificate expiration:', error);
+            }
+        };
+
+        checkCertExpiration();
+    }, [certWarningShown, changeAlertStatusAndMessage])
 
     const openSidebar = () => setIsOpenSidebar(true);
     const closeSidebar = () => setIsOpenSidebar(false);

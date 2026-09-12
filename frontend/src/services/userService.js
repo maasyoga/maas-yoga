@@ -58,11 +58,13 @@ export default {
                 })
         });
     },
-    getUsers() {
+    getUsers(includeDeleted = false) {
         return new Promise((resolve, reject) => {
             const baseUrl = process.env.REACT_APP_BACKEND_HOST;
             axios
-                .get(baseUrl + 'api/v1/users', {})
+                .get(baseUrl + 'api/v1/users', {
+                    params: { includeDeleted }
+                })
                 .then((response) => {
                     resolve(response.data);
                 })
@@ -71,11 +73,24 @@ export default {
                 })
         });
     },
-    getHealth() {
+    restoreUser(email) {
+        return new Promise((resolve, reject) => {
+            const baseUrl = process.env.REACT_APP_BACKEND_HOST;
+            axios
+                .put(baseUrl + `api/v1/users/${email}/restore`, {})
+                .then((response) => {
+                    resolve(response.data);
+                })
+                .catch((error) => {
+                    reject(error.data)
+                })
+        });
+    },
+    getHealth(checkCert = false) {
         return new Promise((resolve, reject) => {
             const healthUrl = process.env.REACT_APP_BACKEND_HOST + "api/v1/healthcheck";
             axios
-                .get(healthUrl)
+                .get(healthUrl, { params: { checkCert } })
                 .then((response) => {
                     resolve(response.data);
                 })
