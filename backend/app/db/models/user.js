@@ -13,6 +13,9 @@ const user = (sequelize) => {
     password: Sequelize.STRING,
     permissionCreateUser: { type: Sequelize.BOOLEAN, allowNull: false, defaultValue: false },
     permissionGoogleDrive: { type: Sequelize.BOOLEAN, allowNull: false, defaultValue: false },
+    status: { type: Sequelize.STRING, allowNull: false, defaultValue: "active" },
+    deletedAt: { type: Sequelize.DATE, allowNull: true },
+    role: { type: Sequelize.STRING, allowNull: false, defaultValue: "operator" },
   }, {
     defaultScope: {
       attributes: {
@@ -24,6 +27,12 @@ const user = (sequelize) => {
         attributes: {
           include: ["password"]
         }
+      },
+      deleted: {
+        where: { status: "deleted" }
+      },
+      active: {
+        where: { status: "active" }
       }
     }
   });

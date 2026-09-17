@@ -13,6 +13,7 @@ import https from "https";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import logger from "../utils/logger.js";
 
 const WSAA_URL = {
   homologation: "https://wsaahomo.afip.gov.ar/ws/services/LoginCms",
@@ -125,7 +126,7 @@ const getToken = async () => {
   const signMatch = decoded.match(/<sign>([\s\S]*?)<\/sign>/);
   if (!tokenMatch || !signMatch) {
     if (response.includes("alreadyAuthenticated") && tokenCache.token) {
-      console.warn("WSAA: alreadyAuthenticated — usando token en caché");
+      logger.warn("WSAA: alreadyAuthenticated — usando token en caché");
       return tokenCache;
     }
     throw new Error("WSAA fallo: " + response);
@@ -200,7 +201,7 @@ export const emitirFactura = async ({ items, ivaCondition, cuit, docType, docume
 
   if (!certPath || !keyPath || !cuitEmisor) return null;
   if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
-    console.warn("AFIP: archivos de certificado no encontrados. Facturación deshabilitada.");
+    logger.warn("AFIP: archivos de certificado no encontrados. Facturación deshabilitada.");
     return null;
   }
   if (!Array.isArray(items) || items.length === 0) {
@@ -251,12 +252,25 @@ export const emitirFactura = async ({ items, ivaCondition, cuit, docType, docume
 
   const response = await soapRequest(WSFE_URL[getEnv()], "http://ar.gov.afip.dif.FEV1/FECAESolicitar", wsfeBody);
 
-  const errMatch = response.match(/<Msg>([\s\S]*?)<\/Msg>/);
   const caeMatch = response.match(/<CAE>([\s\S]*?)<\/CAE>/);
   const caeFchMatch = response.match(/<CAEFchVto>([\s\S]*?)<\/CAEFchVto>/);
 
   if (!caeMatch) {
-    const msg = errMatch ? errMatch[1].trim() : response;
+    // <Errors> = motivo real del rechazo. <Observaciones> = solo informativo (puede venir
+    // incluso cuando SÍ hay CAE). Se distinguen para no confundir una advertencia con el
+    // motivo del rechazo, y se loguea la respuesta cruda completa para poder diagnosticar.
+    const errCodes = [...response.matchAll(/<Err>\s*<Code>(\d+)<\/Code>\s*<Msg>([\s\S]*?)<\/Msg>\s*<\/Err>/g)]
+      .map(([, code, msg]) => `[${code}] ${msg.trim()}`);
+    const obsCodes = [...response.matchAll(/<Obs>\s*<Code>(\d+)<\/Code>\s*<Msg>([\s\S]*?)<\/Msg>\s*<\/Obs>/g)]
+      .map(([, code, msg]) => `[${code}] ${msg.trim()}`);
+    const genericMsg = response.match(/<Msg>([\s\S]*?)<\/Msg>/);
+
+    logger.error(`❌ AFIP no devolvió CAE. Request: docTipo=${docTipo} docNro=${docNro} cbteTipo=${cbteTipo} condIvaReceptor=${condIvaReceptor} total=${total}`);
+    logger.error(`❌ AFIP respuesta cruda completa:\n${response}`);
+
+    const msg = errCodes.length > 0
+      ? errCodes.join(" | ")
+      : (obsCodes.length > 0 ? `Observación: ${obsCodes.join(" | ")}` : (genericMsg ? genericMsg[1].trim() : response));
     throw new Error(`AFIP no devolvió CAE: ${msg}`);
   }
 
@@ -264,7 +278,7 @@ export const emitirFactura = async ({ items, ivaCondition, cuit, docType, docume
   const raw = caeFchMatch ? caeFchMatch[1].trim() : null;
   const caeVencimiento = raw ? `${raw.substring(0, 4)}-${raw.substring(4, 6)}-${raw.substring(6, 8)}` : null;
 
-  console.log(`✅ Factura emitida: ${label} N° ${nroComprobante} | CAE: ${cae} | Ítems: ${items.map(i => i.paymentId).join(", ")}`);
+  logger.log(`✅ Factura emitida: ${label} N° ${nroComprobante} | CAE: ${cae} | Ítems: ${items.map(i => i.paymentId).join(", ")}`);
 
   return { cae, caeVencimiento, invoiceNumber: nroComprobante, invoiceType: label, total };
 };

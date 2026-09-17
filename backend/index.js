@@ -5,9 +5,16 @@ import cron from "node-cron";
 import { addTodayPaymentServices } from "./app/client/scheduledCronTasks.js";
 import express, { json } from "express";
 const app = express();
+app.set("trust proxy", 1);
 import errorHandler from "./app/middleware/errorHandler.js";
 import routes from "./app/routes/index.js";
 import cors from "cors";
+import { APP_VERSION } from "./app/utils/constants.js";
+import logger from "./app/utils/logger.js";
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from "./app/config/swaggerConfig.js";
+
+logger.log(`Starting application version ${APP_VERSION}`);
 
 cron.schedule("0 1 * * *", addTodayPaymentServices);
 
@@ -23,6 +30,17 @@ app.use(
 
 app.use(json());
 
+if (process.env.SWAGGER_ENABLED !== "false") {
+  app.use("/api/v1/api-docs", swaggerUi.serve);
+  app.get("/api/v1/api-docs", swaggerUi.setup(swaggerSpec, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      tryItOutEnabled: true,
+    },
+  }));
+  logger.log("Swagger documentation available at /api/v1/api-docs");
+}
+
 app.use("/api/v1", routes);
 
 import { sequelize } from "./app/db/index.js";
@@ -30,20 +48,20 @@ import createFirstUserIfNotExists from "./app/seeders/firstUserSeed.js";
 
 try {
   await sequelize.sync({ alter: true });
-  console.log("Connection to db successful");
+  logger.log("Connection to db successful");
 } catch(e) {
-  console.log("Could not connect db");
-  console.log(e);
+  logger.log("Could not connect db");
+  logger.log(e);
 }
-createFirstUserIfNotExists();
-addTodayPaymentServices();
+createFirstUserIfNotExists().catch(e => logger.error("Error running createFirstUserIfNotExists:", e));
+addTodayPaymentServices().catch(e => logger.error("Error running addTodayPaymentServices:", e));
 
 
 app.use(errorHandler);
 
   
 if (useSsl === "true") {
-  console.log("https");
+  logger.log("https");
   try {
     const options = {
       key: fs.readFileSync(process.env.SSL_CERTIFICATE_KEY_PATH),
@@ -51,9 +69,9 @@ if (useSsl === "true") {
     };
     https.createServer(options, app).listen(port);
   } catch(e) {
-    console.log(e);
+    logger.log(e);
   }
 } else {
-  console.log("http");
-  app.listen(port, () => console.log(`listening on port ${port}`));
+  logger.log("http");
+  app.listen(port, () => logger.log(`listening on port ${port}`));
 }
